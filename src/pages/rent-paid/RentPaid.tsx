@@ -131,44 +131,7 @@ const RentPaid = () => {
 
       {showPaymentForm && <PaymentForm />}
 
-      <section className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Outstanding balances for {formattedMonth}</h2>
-          <p className="text-sm text-gray-500">
-            Subtracts paid amounts from the unit rent, using the latest recorded month to highlight who still owes.
-          </p>
-        </div>
-        {outstanding.rows.length ? (
-          <div className="space-y-3 rounded border border-gray-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <p className="font-medium">Total outstanding</p>
-              <p className="text-xl font-semibold">{formatCurrency(outstanding.total)}</p>
-            </div>
-            <ul className="space-y-3">
-              {outstanding.rows.map((row) => (
-                <li
-                  key={row.unit.id}
-                  className="flex flex-col gap-2 rounded border border-dashed border-gray-200 p-3 shadow-sm md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <p className="font-semibold">{row.displayName}</p>
-                    <p className="text-sm text-gray-500">Unit {row.unit.unitNumber || row.unit.id}</p>
-                  </div>
-                  <div className="text-sm text-gray-500 md:text-right">
-                    <p>Expected: {formatCurrency(row.unit.rentAmount)}</p>
-                    <p>Paid: {formatCurrency(row.paid)}</p>
-                  </div>
-                  <p className="text-lg font-semibold text-amber-600">{formatCurrency(row.balance)}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">No outstanding balances detected for {formattedMonth}.</p>
-        )}
-      </section>
-
-      <RentTable payments={payments} />
+      <RentTable payments={filteredPayments} />
     </section>
   );
 };
