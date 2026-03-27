@@ -6,6 +6,7 @@ import type { Unit } from '../../types/unit';
 import useAuth from '../../hooks/useAuth';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 const initialState = {
   unitNumber: '',
@@ -28,38 +29,63 @@ const Properties = () => {
 
   const selectedUnit = selectedUnitId ? units.find((unit) => unit.id === selectedUnitId) : null;
 
+  useEffect(() => {
+    console.log('🔍 OCCUPANCY DEBUG - Initial Load:', {
+      units: displayedUnits.map(u => ({ id: u.id, unitNumber: u.unitNumber, numberOfHouses: u.numberOfHouses })),
+      tenantsCount: tenants.length,
+      userId: user?.id
+    });
+  }, [displayedUnits, tenants, user?.id]);
+
   const occupantsByUnit = useMemo(() => {
     const map = new Map<string, number>();
     tenants.forEach((tenant) => {
-      if (!tenant.unitId) return;
+      if (!tenant.unitId) {
+        console.log('⚠️ Tenant has no unitId:', tenant.fullName);
+        return;
+      }
 
       const isActiveTenant = tenant.status === 'active' || tenant.status === 'late';
-      if (!isActiveTenant) return;
+      if (!isActiveTenant) {
+        console.log(`⚠️ Tenant ${tenant.fullName} is not active (status: ${tenant.status})`);
+        return;
+      }
 
+      console.log(`✅ Counting tenant ${tenant.fullName} for unit ${tenant.unitId} (status: ${tenant.status})`);
       map.set(tenant.unitId, (map.get(tenant.unitId) ?? 0) + 1);
     });
+    console.log('📊 Occupants by unit map:', Object.fromEntries(map));
     return map;
   }, [tenants]);
 
   useEffect(() => {
     if (!selectedUnit) {
+      console.log('❌ No unit selected');
       return;
     }
     const tenantCount = occupantsByUnit.get(selectedUnit.id) ?? 0;
     const capacity = selectedUnit.numberOfHouses ?? 1;
+    console.log('🏘️ Selected unit details:', {
+      unitNumber: selectedUnit.unitNumber,
+      unitId: selectedUnit.id,
+      tenantCount,
+      capacity,
+      occupancyPercentage: Math.round((tenantCount / capacity) * 100) + '%'
+    });
     if (tenantCount > capacity) {
       console.error(
-        `Occupancy mismatch for unit ${selectedUnit.unitNumber || selectedUnit.id}: ${tenantCount} tenants for ${capacity} houses`
+        `❌ Occupancy mismatch for unit ${selectedUnit.unitNumber || selectedUnit.id}: ${tenantCount} tenants for ${capacity} houses`
       );
     } else {
-      console.error(
-        `Debug occupancy ${selectedUnit.unitNumber || selectedUnit.id}: ${tenantCount}/${capacity} occupied`
+      console.log(
+        `✅ Occupancy OK for unit ${selectedUnit.unitNumber || selectedUnit.id}: ${tenantCount}/${capacity} occupied`
       );
     }
   }, [selectedUnit, occupantsByUnit]);
 
   const occupancyState = useMemo(() => {
     if (!selectedUnit) {
+      console.log('❌ occupancyState: No selected unit');
       return {
         occupied: 0,
         notOccupied: 0,
@@ -71,11 +97,20 @@ const Properties = () => {
     const occupied = Math.min(occupantsByUnit.get(selectedUnit.id) ?? 0, housesCount);
     const notOccupied = Math.max(housesCount - occupied, 0);
 
+    console.log('🏠 occupancyState calculated:', {
+      housesCount,
+      occupied,
+      notOccupied,
+      selectedUnitId: selectedUnit.id
+    });
+
     const houses = Array.from({ length: housesCount }, (_, index) => ({
       id: `${selectedUnit.id}-house-${index + 1}`,
       number: index + 1,
       occupied: index < occupied
     }));
+
+    console.log('🏠 Generated houses:', houses);
 
     return {
       occupied,
@@ -120,6 +155,7 @@ const Properties = () => {
 
   useEffect(() => {
     if (!selectedUnitId && displayedUnits.length > 0) {
+      console.log('🎯 Auto-selecting first unit:', displayedUnits[0]);
       setSelectedUnitId(displayedUnits[0].id);
     }
   }, [displayedUnits, selectedUnitId]);
@@ -128,8 +164,8 @@ const Properties = () => {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1>Properties</h1>
-          <p>Register and monitor every unit across your portfolio.</p>
+          <h1>Propertiess</h1>
+          <p>Register and monitor every unit across your portfolios.</p>
         </div>
         <Button type="button" onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Hide Form' : 'Create Unit'}
@@ -186,7 +222,7 @@ const Properties = () => {
                 onClick={() => setSelectedUnitId(unit.id)}
               >
                 <p className="font-medium">{unit.unitNumber || 'Unit'}</p>
-                <p>Rent: {unit.rentAmount}</p>
+                <p>Rent: {formatCurrency(unit.rentAmount)}</p>
                 <p>Status: {unit.status}</p>
                 <p>Houses: {unit.numberOfHouses ?? 1}</p>
               </li>
@@ -232,9 +268,7 @@ const Properties = () => {
                 <p className="status-card__meta">Needs tenants or in maintenance</p>
               </article>
             </div>
-            <p className="text-sm text-gray-600 mt-2">
-              Total houses: {selectedUnit.numberOfHouses ?? 1} · Occupied houses: {occupancyState.occupied}
-            </p>
+            
           </>
         ) : (
           <p className="mt-2 text-sm text-gray-500">Select a vacant unit above to view its occupancy breakdown.</p>

@@ -33,15 +33,17 @@ const Tenants = () => {
   useEffect(() => {
     const loadUnits = async () => {
       try {
-        const data = await fetchUnits();
+        const data = await fetchUnits(undefined, 'all', user?.id);
         setUnits(data);
       } catch (error) {
         console.error('Failed to load units', error);
       }
     };
 
-    loadUnits();
-  }, []);
+    if (user?.id) {
+      loadUnits();
+    }
+  }, [user?.id]);
 
   const handleChange = (field: keyof typeof initialForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));

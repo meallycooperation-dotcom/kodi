@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import type { Tenant } from '../types/tenant';
 import { fetchTenants } from '../services/tenantService';
+import useAuth from './useAuth';
 
 const useTenants = () => {
+  const { user } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
   useEffect(() => {
     let mounted = true;
 
     const loadTenants = async () => {
-      const data = await fetchTenants();
+      const data = await fetchTenants(user?.id);
       if (mounted) setTenants(data);
     };
 
@@ -18,10 +20,10 @@ const useTenants = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [user?.id]);
 
   const refresh = async () => {
-    const data = await fetchTenants();
+    const data = await fetchTenants(user?.id);
     setTenants(data);
   };
 

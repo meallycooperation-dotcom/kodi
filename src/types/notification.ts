@@ -1,9 +1,10 @@
 export type Notification = {
   id: string;
-  userId: string;
+  creatorId: string;
   title: string;
   message: string;
-  type: 'info' | 'warning' | 'payment' | 'reminder';
-  read: boolean;
+  type: 'payment' | 'arrears' | 'reminder' | 'system';
+  relatedId?: string;
+  isRead: boolean;
   createdAt: string;
 };

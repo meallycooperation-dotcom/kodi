@@ -27,3 +27,14 @@ export const fetchProfileById = async (id: string): Promise<UserSession | null> 
 
   return data ? mapProfile(data) : null;
 };
+
+export const changePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  
+  if (error) {
+    console.error('changePassword', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+};

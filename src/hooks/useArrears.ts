@@ -22,7 +22,7 @@ const useArrears = () => {
       try {
         const [arrearsRecords, tenantRecords] = await Promise.all([
           fetchRentArrearsView(user.id),
-          fetchTenants()
+          fetchTenants(user.id)
         ]);
 
         const tenantById = new Map(tenantRecords.map((t) => [t.id, t.fullName]));
@@ -34,7 +34,7 @@ const useArrears = () => {
           amountDue: record.arrears,
           month: record.month,
           status: (record.status as Arrear['status']) ?? 'unpaid',
-          createdAt: record.created_at ?? new Date().toISOString()
+          createdAt: new Date().toISOString()
         }));
 
         const balanceMap = new Map<string, TenantArrearBalance>();

@@ -5,7 +5,6 @@ import OccupancyChart from '../../components/analytics/OccupancyChart';
 import RevenueChart from '../../components/analytics/RevenueChart';
 import D3ComparisonChart from '../../components/analytics/D3ComparisonChart';
 import Calendar from '../../components/ui/Calendar';
-import SeoHighlights from '../../components/seo/SeoHighlights';
 import useAuth from '../../hooks/useAuth';
 import useArrears from '../../hooks/useArrears';
 import useDashboardSummary from '../../hooks/useDashboardSummary';
@@ -96,15 +95,9 @@ const Dashboard = () => {
   return (
     <section className="space-y-6">
       <div className="flex items-center gap-3">
-        <h1>Dashboard</h1>
-        {isLoading && <span className="text-sm text-gray-500">Refreshing data...</span>}
+        <h1 className="sr-only">Dashboard</h1>
+        {isLoading && <span className="sr-only text-sm text-gray-500">Refreshing data...</span>}
       </div>
-      <SeoHighlights
-        totalCollected={totalCollectedValue}
-        totalArrears={totalArrearsValue}
-        trackedTenants={trackedTenants}
-        latestMonth={latestMonth}
-      />
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         {metricCards.map((metric) => (
           <Card key={metric.key} title={metric.label}>

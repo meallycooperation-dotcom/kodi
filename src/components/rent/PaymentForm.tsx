@@ -31,8 +31,8 @@ const PaymentForm = () => {
     const loadData = async () => {
       try {
         const [unitsData, tenantsData] = await Promise.all([
-          fetchUnits(),
-          fetchTenants()
+          fetchUnits(undefined, 'all', user?.id),
+          fetchTenants(user?.id)
         ]);
         setUnits(unitsData);
         setTenants(tenantsData);
@@ -41,8 +41,10 @@ const PaymentForm = () => {
       }
     };
 
-    loadData();
-  }, []);
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id]);
 
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));

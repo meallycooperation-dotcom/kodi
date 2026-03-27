@@ -40,8 +40,11 @@ const mapTenantRow = (row: TenantRow): Tenant => ({
   createdAt: row.created_at
 });
 
-export const fetchTenants = async () => {
-  const query = supabase.from('tenants').select('*');
+export const fetchTenants = async (userId?: string) => {
+  let query = supabase.from('tenants').select('*');
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
   const { data, error } = await query;
   handleError(error);
   return (data ?? []).map(mapTenantRow);
