@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
 import type { MonthlyRevenueRow } from '../../services/viewService';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../context/currency';
 
 type ChartDatum = MonthlyRevenueRow & {
   date: Date;
@@ -21,6 +21,7 @@ const colors = {
 
 const MonthlyRevenueChart = ({ data, width = 600, height = 320 }: MonthlyRevenueChartProps) => {
   const ref = useRef<SVGSVGElement | null>(null);
+  const { formatCurrency } = useCurrency();
   const preparedData = useMemo(() => {
     const parseMonth = d3.timeParse('%Y-%m');
     return (

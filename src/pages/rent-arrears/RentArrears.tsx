@@ -4,9 +4,10 @@ import useArrears from '../../hooks/useArrears';
 import useDashboardSummary from '../../hooks/useDashboardSummary';
 import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../context/currency';
 
 const RentArrears = () => {
+  const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const { units } = useUnits('all', user?.id);
   const { arrears, totalDue, tenantBalances } = useArrears();

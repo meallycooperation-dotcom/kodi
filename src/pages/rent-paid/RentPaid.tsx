@@ -6,9 +6,10 @@ import usePayments from '../../hooks/usePayments';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../context/currency';
 
 const RentPaid = () => {
+  const { formatCurrency } = useCurrency();
   const { payments, totalCollected } = usePayments();
   const { user } = useAuth();
   const { units } = useUnits('all', user?.id);

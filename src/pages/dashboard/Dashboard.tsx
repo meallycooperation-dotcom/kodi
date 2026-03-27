@@ -14,7 +14,7 @@ import usePayments from '../../hooks/usePayments';
 import useReminders from '../../hooks/useReminders';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../context/currency';
 
 const metricCards = [
   { label: 'Total collected', key: 'totalCollected' },
@@ -26,6 +26,7 @@ const metricCards = [
 ];
 
 const Dashboard = () => {
+  const { formatCurrency } = useCurrency();
   const { user, loading: authLoading } = useAuth();
   const { tenants } = useTenants();
   const { units } = useUnits('all', user?.id);

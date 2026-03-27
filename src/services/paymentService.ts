@@ -65,12 +65,15 @@ const mapPaymentWithTenantRow = (row: PaymentWithTenantRow): Payment => ({
   tenantName: row.tenants?.full_name ?? undefined
 });
 
-export const fetchPayments = async (creatorId?: string, limit = 10) => {
+export const fetchPayments = async (creatorId?: string, limit?: number) => {
   let query = supabase
     .from('payments')
     .select('*, tenants!inner(full_name)')
-    .order('payment_date', { ascending: false })
-    .limit(limit);
+    .order('payment_date', { ascending: false });
+
+  if (limit) {
+    query = query.limit(limit);
+  }
 
   if (creatorId) {
     query = query.eq('creator_id', creatorId);
@@ -79,4 +82,16 @@ export const fetchPayments = async (creatorId?: string, limit = 10) => {
   const { data, error } = await query;
   handleError(error);
   return (data ?? []).map((row) => mapPaymentWithTenantRow(row as PaymentWithTenantRow));
+};
+
+export const paymentExistsForMonth = async (tenantId: string, monthPaidFor: string): Promise<boolean> => {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('month_paid_for', monthPaidFor)
+    .limit(1);
+
+  handleError(error);
+  return (data ?? []).length > 0;
 };

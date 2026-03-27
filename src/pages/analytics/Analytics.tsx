@@ -9,9 +9,10 @@ import useArrears from '../../hooks/useArrears';
 import useMonthlyRevenue from '../../hooks/useMonthlyRevenue';
 import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../context/currency';
 
 const Analytics = () => {
+  const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const { tenants } = useTenants();
   const { payments, totalCollected } = usePayments();

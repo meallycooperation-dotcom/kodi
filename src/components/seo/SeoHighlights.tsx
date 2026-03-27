@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { formatCurrency } from '../../utils/formatCurrency';
 
 type SeoHighlightsProps = {
   totalCollected: number;

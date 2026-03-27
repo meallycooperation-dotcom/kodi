@@ -1,12 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import useAuth from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { changePassword } from '../../services/profileService';
+import { useCurrency } from '../../context/currency';
+
+const SUBSCRIPTION_WINDOW_DAYS = 30;
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const subscriptionDateFormatter = new Intl.DateTimeFormat('en-KE', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric'
+});
 
 const Settings = () => {
   const { user, loading, signOut } = useAuth();
+  const { selectedCurrency, setSelectedCurrency, availableCurrencies, loading: currencyLoading } =
+    useCurrency();
   const navigate = useNavigate();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -14,6 +25,40 @@ const Settings = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const subscriptionInfo = useMemo(() => {
+    if (!user) {
+      return null;
+    }
+    const created = new Date(user.createdAt);
+    if (!Number.isFinite(created.getTime())) {
+      return null;
+    }
+    const due = new Date(created.getTime() + SUBSCRIPTION_WINDOW_DAYS * MS_PER_DAY);
+    const now = new Date();
+    const remainingMs = due.getTime() - now.getTime();
+    const daysRemaining = Math.max(0, Math.ceil(remainingMs / MS_PER_DAY));
+    const elapsedMs = now.getTime() - created.getTime();
+    const elapsedDays = Math.max(
+      0,
+      Math.min(SUBSCRIPTION_WINDOW_DAYS, Math.floor(elapsedMs / MS_PER_DAY))
+    );
+    const progress = Math.min(100, Math.round((elapsedDays / SUBSCRIPTION_WINDOW_DAYS) * 100));
+    const isOverdue = now.getTime() > due.getTime();
+    return {
+      created,
+      due,
+      daysRemaining,
+      progress,
+      isOverdue
+    };
+  }, [user]);
+  const subscriptionStatusText = subscriptionInfo
+    ? subscriptionInfo.isOverdue
+      ? 'Payment overdue - please settle immediately'
+      : subscriptionInfo.daysRemaining === 0
+        ? 'Payment due today'
+        : `${subscriptionInfo.daysRemaining} day${subscriptionInfo.daysRemaining === 1 ? '' : 's'} until payment`
+    : '';
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,35 +120,96 @@ const Settings = () => {
       </div>
       {user ? (
         <div className="space-y-6">
-          <div className="card">
-            <h2>User information</h2>
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Name</dt>
-                <dd>{user.fullName}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Email</dt>
-                <dd>{user.email}</dd>
-              </div>
-            </dl>
-            <div className="mt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={async () => {
-                  await signOut();
-                  navigate('/auth/login');
-                }}
-              >
-                Logout
-              </Button>
+        <div className="card">
+          <h2>User information</h2>
+          <dl className="space-y-3">
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Name</dt>
+              <dd>{user.fullName}</dd>
             </div>
+            <div>
+              <dt className="text-sm font-medium text-gray-500">Email</dt>
+              <dd>{user.email}</dd>
+            </div>
+          </dl>
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="ghost"
+                onClick={async () => {
+              await signOut();
+              navigate('/auth/login');
+            }}
+          >
+            Logout
+          </Button>
           </div>
+        </div>
 
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h2>Change Password</h2>
+        <div className="card space-y-3">
+          <div className="flex items-center justify-between">
+            <h2>Currency</h2>
+            {currencyLoading && (
+              <span className="text-sm text-gray-500">Updating exchange rates...</span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">
+            Choose the currency you want to see throughout the dashboard.
+          </p>
+          <select
+            className="w-full max-w-xs rounded-lg border border-gray-200 p-2"
+            value={selectedCurrency}
+            onChange={(event) => setSelectedCurrency(event.target.value)}
+            disabled={currencyLoading}
+          >
+            {availableCurrencies.map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {subscriptionInfo && (
+          <div className="card space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2>Subscription</h2>
+              <span
+                className={`text-xs font-semibold uppercase tracking-wide rounded-full px-3 py-1 border ${
+                  subscriptionInfo.isOverdue
+                    ? 'border-red-100 bg-red-50 text-red-700'
+                    : 'border-green-100 bg-green-50 text-green-700'
+                }`}
+              >
+                {subscriptionInfo.isOverdue ? 'Overdue' : 'Active'}
+              </span>
+            </div>
+
+            <div className="grid gap-3 text-sm text-gray-500">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Started</p>
+                <p>{subscriptionDateFormatter.format(subscriptionInfo.created)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Due</p>
+                <p>{subscriptionDateFormatter.format(subscriptionInfo.due)}</p>
+              </div>
+            </div>
+
+            <div className="h-2 w-full rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-all duration-200"
+                style={{ width: `${subscriptionInfo.progress}%` }}
+              />
+            </div>
+
+            <p className="text-lg font-semibold text-gray-900">{subscriptionStatusText}</p>
+          </div>
+        )}
+
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2>Change Password</h2>
               <Button
                 type="button"
                 variant="ghost"

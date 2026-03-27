@@ -6,7 +6,7 @@ import type { Unit } from '../../types/unit';
 import useAuth from '../../hooks/useAuth';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useCurrency } from '../../context/currency';
 
 const initialState = {
   unitNumber: '',
@@ -16,6 +16,7 @@ const initialState = {
 };
 
 const Properties = () => {
+  const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const { tenants } = useTenants();
   const { units, refresh } = useUnits('all', user?.id);
