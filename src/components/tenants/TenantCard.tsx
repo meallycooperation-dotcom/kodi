@@ -11,6 +11,9 @@ const TenantCard = ({ tenant }: TenantCardProps) => (
       <strong>Unit:</strong> {tenant.unitId ?? '—'}
     </p>
     <p>
+      <strong>House:</strong> {tenant.houseNumber ?? '—'}
+    </p>
+    <p>
       <strong>Contact:</strong> {tenant.phone ?? 'n/a'} · {tenant.email ?? 'n/a'}
     </p>
     <p>

@@ -25,10 +25,19 @@ const useArrears = () => {
           fetchTenants(user.id)
         ]);
 
+        const uniqueArrearsRecords = Array.from(
+          new Map(
+            arrearsRecords.map((record) => [
+              `${record.tenant_id}-${record.month}`,
+              record
+            ])
+          ).values()
+        );
+
         const tenantById = new Map(tenantRecords.map((t) => [t.id, t.fullName]));
         const unitByTenant = new Map(tenantRecords.map((t) => [t.id, t.unitId]));
 
-        const mapped = arrearsRecords.map<Arrear>((record) => ({
+        const mapped = uniqueArrearsRecords.map<Arrear>((record) => ({
           id: `${record.tenant_id}-${record.month}`,
           tenantId: record.tenant_id,
           unitId: unitByTenant.get(record.tenant_id),
@@ -65,7 +74,7 @@ const useArrears = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [user?.id]);
 
   const totalDue = arrears.reduce((sum, entry) => sum + entry.amountDue, 0);
 

@@ -20,6 +20,7 @@ type TenantRow = {
   id: string;
   user_id: string | null;
   unit_id: string | null;
+  house_number: string | null;
   full_name: string | null;
   phone: string | null;
   email: string | null;
@@ -32,6 +33,7 @@ const mapTenantRow = (row: TenantRow): Tenant => ({
   id: row.id,
   userId: row.user_id,
   unitId: row.unit_id,
+  houseNumber: row.house_number ?? undefined,
   fullName: row.full_name ?? '',
   phone: row.phone ?? '',
   email: row.email ?? '',
@@ -57,6 +59,7 @@ export const insertTenant = async (payload: NewTenantInput) => {
       {
         user_id: payload.userId,
         unit_id: payload.unitId,
+        house_number: payload.houseNumber ?? null,
         full_name: payload.fullName,
         phone: payload.phone,
         email: payload.email,

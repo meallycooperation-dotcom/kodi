@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { insertUnit } from '../../services/unitService';
-import type { Unit } from '../../types/unit';
+import { insertHouse } from '../../services/houseService';
 import useAuth from '../../hooks/useAuth';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
@@ -41,21 +41,28 @@ const Properties = () => {
   const occupantsByUnit = useMemo(() => {
     const map = new Map<string, number>();
     tenants.forEach((tenant) => {
-      if (!tenant.unitId) {
-        console.log('⚠️ Tenant has no unitId:', tenant.fullName);
-        return;
-      }
-
+      if (!tenant.unitId) return;
       const isActiveTenant = tenant.status === 'active' || tenant.status === 'late';
-      if (!isActiveTenant) {
-        console.log(`⚠️ Tenant ${tenant.fullName} is not active (status: ${tenant.status})`);
-        return;
-      }
-
-      console.log(`✅ Counting tenant ${tenant.fullName} for unit ${tenant.unitId} (status: ${tenant.status})`);
+      if (!isActiveTenant) return;
       map.set(tenant.unitId, (map.get(tenant.unitId) ?? 0) + 1);
     });
-    console.log('📊 Occupants by unit map:', Object.fromEntries(map));
+    return map;
+  }, [tenants]);
+
+  const occupiedHouseNumbersByUnit = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    tenants.forEach((tenant) => {
+      if (!tenant.unitId || !tenant.houseNumber) return;
+      const isActiveTenant = tenant.status === 'active' || tenant.status === 'late';
+      if (!isActiveTenant) return;
+
+      const num = Number(tenant.houseNumber);
+      if (Number.isNaN(num)) return;
+
+      const set = map.get(tenant.unitId) ?? new Set<number>();
+      set.add(num);
+      map.set(tenant.unitId, set);
+    });
     return map;
   }, [tenants]);
 
@@ -86,7 +93,6 @@ const Properties = () => {
 
   const occupancyState = useMemo(() => {
     if (!selectedUnit) {
-      console.log('❌ occupancyState: No selected unit');
       return {
         occupied: 0,
         notOccupied: 0,
@@ -95,30 +101,27 @@ const Properties = () => {
     }
 
     const housesCount = selectedUnit.numberOfHouses ?? 1;
-    const occupied = Math.min(occupantsByUnit.get(selectedUnit.id) ?? 0, housesCount);
-    const notOccupied = Math.max(housesCount - occupied, 0);
+    const occupiedHouseSet = occupiedHouseNumbersByUnit.get(selectedUnit.id) ?? new Set<number>();
 
-    console.log('🏠 occupancyState calculated:', {
-      housesCount,
-      occupied,
-      notOccupied,
-      selectedUnitId: selectedUnit.id
+    const houses = Array.from({ length: housesCount }, (_, index) => {
+      const number = index + 1;
+      const occupied = occupiedHouseSet.has(number);
+      return {
+        id: `${selectedUnit.id}-house-${number}`,
+        number,
+        occupied
+      };
     });
 
-    const houses = Array.from({ length: housesCount }, (_, index) => ({
-      id: `${selectedUnit.id}-house-${index + 1}`,
-      number: index + 1,
-      occupied: index < occupied
-    }));
-
-    console.log('🏠 Generated houses:', houses);
+    const occupied = houses.filter((h) => h.occupied).length;
+    const notOccupied = housesCount - occupied;
 
     return {
       occupied,
       notOccupied,
       houses
     };
-  }, [selectedUnit, occupantsByUnit]);
+  }, [selectedUnit, occupiedHouseNumbersByUnit]);
 
   const handleChange = (field: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -135,15 +138,27 @@ const Properties = () => {
     setStatusMessage(null);
 
     try {
-      await insertUnit({
+      const createdUnit = await insertUnit({
         unitNumber: form.unitNumber,
         rentAmount: parseFloat(form.rentAmount) || 0,
         numberOfHouses: form.numberOfHouses ? parseInt(form.numberOfHouses, 10) : undefined,
         status: form.status as 'vacant' | 'occupied' | 'maintenance',
         userId: user.id
       });
+
+      const housesToCreate = Math.max(1, parseInt(form.numberOfHouses || '1', 10));
+      await Promise.all(
+        Array.from({ length: housesToCreate }, (_, index) =>
+          insertHouse({
+            unitId: createdUnit.id,
+            houseNumber: String(index + 1),
+            status: form.status as 'vacant' | 'occupied' | 'maintenance'
+          })
+        )
+      );
+
       await refresh('all');
-      setStatusMessage('Unit created');
+      setStatusMessage('Unit created and houses seeded.');
       setForm(initialState);
       setSelectedUnitId(null);
     } catch (error) {

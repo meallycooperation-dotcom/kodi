@@ -140,7 +140,17 @@ const Dashboard = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="sr-only">Dashboard</h1>
-          {isLoading && <span className="sr-only text-sm text-gray-500">Refreshing data...</span>}
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <span
+                className="h-5 w-5 animate-spin rounded-full border-4 border-solid border-transparent border-t-blue-500"
+                aria-hidden="true"
+              />
+              <span>Loading dashboard data…</span>
+            </div>
+          ) : (
+            <span className="sr-only text-sm text-gray-500">Dashboard data loaded</span>
+          )}
         </div>
         <label className="input-field">
           <span>Filter by Unit</span>
