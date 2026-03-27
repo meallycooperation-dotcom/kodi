@@ -1,6 +1,7 @@
 export type Arrear = {
   id: string;
   tenantId: string;
+  unitId?: string;
   tenantName?: string;
   amountDue: number;
   month: string;

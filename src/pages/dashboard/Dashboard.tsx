@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Card from '../../components/ui/Card';
 import KPIStats from '../../components/analytics/KPIStats';
 import OccupancyChart from '../../components/analytics/OccupancyChart';
@@ -33,13 +33,38 @@ const Dashboard = () => {
   const { arrears, totalDue } = useArrears();
   const { reminders } = useReminders();
   const { notifications } = useNotifications();
-
   const { summary, loading: summaryLoading } = useDashboardSummary();
   const { months } = useMonthlyRevenue();
 
+  const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
+
+  const filteredTenants = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? tenants
+        : tenants.filter((tenant) => tenant.unitId === selectedUnitId),
+    [tenants, selectedUnitId]
+  );
+
+  const filteredPayments = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? payments
+        : payments.filter((payment) => payment.unitId === selectedUnitId),
+    [payments, selectedUnitId]
+  );
+
+  const filteredArrears = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? arrears
+        : arrears.filter((arrear) => arrear.unitId && arrear.unitId === selectedUnitId),
+    [arrears, selectedUnitId]
+  );
+
   const tenantCountsByUnit = useMemo(() => {
     const map = new Map<string, number>();
-    tenants.forEach((tenant) => {
+    filteredTenants.forEach((tenant) => {
       if (!tenant.unitId) {
         return;
       }
@@ -50,30 +75,47 @@ const Dashboard = () => {
       map.set(tenant.unitId, (map.get(tenant.unitId) ?? 0) + 1);
     });
     return map;
-  }, [tenants]);
+  }, [filteredTenants]);
 
-  const totalOverdues = arrears.length;
-  const totalCollectedValue = summary?.total_collected ?? totalCollected;
-  const totalArrearsValue = summary?.total_arrears ?? totalDue;
+  const totalOverdues = filteredArrears.length;
+  const filteredTotalCollected = useMemo(() => {
+    return filteredPayments.reduce((sum, payment) => sum + payment.amountPaid, 0);
+  }, [filteredPayments]);
+  const filteredTotalArrears = useMemo(() => {
+    return filteredArrears.reduce((sum, arrear) => sum + arrear.amountDue, 0);
+  }, [filteredArrears]);
+  const filteredTenantsPaid = useMemo(() => {
+    const paid = new Set<string>();
+    filteredPayments.forEach((payment) => {
+      paid.add(payment.tenantId);
+    });
+    return paid.size;
+  }, [filteredPayments]);
+
+  const totalCollectedValue = filteredTotalCollected;
+  const totalArrearsValue = filteredTotalArrears;
   const isLoading = authLoading || paymentsLoading || summaryLoading;
   const balance = totalCollectedValue - totalArrearsValue;
-  const trackedTenants = summary?.total_tenants ?? tenants.length;
+  const trackedTenants = filteredTenants.filter((t) => t.status === 'active' || t.status === 'late').length;
   const latestMonth = months[0]?.month;
   const summaryStats = [
     { label: 'Tracked tenants', value: `${trackedTenants}` },
     { label: 'Rent collected', value: formatCurrency(totalCollectedValue) },
     { label: 'Outstanding arrears', value: formatCurrency(totalArrearsValue) }
   ];
+  
+  const displayUnits = selectedUnitId === 'all' ? units : units.filter((u) => u.id === selectedUnitId);
+  
   const { occupiedHouses, totalHouses } = useMemo(() => {
     let occupied = 0;
     let total = 0;
-    units.forEach((unit) => {
+    displayUnits.forEach((unit) => {
       const houses = unit.numberOfHouses ?? 1;
       total += houses;
       occupied += Math.min(tenantCountsByUnit.get(unit.id) ?? 0, houses);
     });
     return { occupiedHouses: occupied, totalHouses: total };
-  }, [tenantCountsByUnit, units]);
+  }, [tenantCountsByUnit, displayUnits]);
 
   const occupancyRate = totalHouses
     ? `${Math.round((occupiedHouses / totalHouses) * 100)}%`
@@ -81,7 +123,7 @@ const Dashboard = () => {
 
   const metrics = {
     totalCollected: formatCurrency(totalCollectedValue),
-    tenantsPaid: `${tenantsPaidCount}`,
+    tenantsPaid: `${filteredTenantsPaid}`,
     overdues: `${totalOverdues}`,
     balance: formatCurrency(balance),
     reminders: `${reminders.length}`,
@@ -94,9 +136,26 @@ const Dashboard = () => {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="sr-only">Dashboard</h1>
-        {isLoading && <span className="sr-only text-sm text-gray-500">Refreshing data...</span>}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="sr-only">Dashboard</h1>
+          {isLoading && <span className="sr-only text-sm text-gray-500">Refreshing data...</span>}
+        </div>
+        <label className="input-field">
+          <span>Filter by Unit</span>
+          <select
+            value={selectedUnitId}
+            onChange={(e) => setSelectedUnitId(e.target.value as string | 'all')}
+            className="w-full md:w-48 p-2 border rounded-lg"
+          >
+            <option value="all">All Units</option>
+            {units.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                Unit {unit.unitNumber}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         {metricCards.map((metric) => (
@@ -120,7 +179,7 @@ const Dashboard = () => {
       <div className="grid gap-6 xl:grid-cols-3">
         <Card title="Recent paid tenants">
           <ul className="space-y-3">
-            {payments.slice(0, 3).map((payment) => (
+            {filteredPayments.slice(0, 3).map((payment) => (
               <li key={payment.id}>
                 <strong>{payment.tenantName ?? payment.tenantId}</strong> · {formatCurrency(payment.amountPaid)} ·{' '}
                 {payment.monthPaidFor}

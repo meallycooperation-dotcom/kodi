@@ -26,10 +26,12 @@ const useArrears = () => {
         ]);
 
         const tenantById = new Map(tenantRecords.map((t) => [t.id, t.fullName]));
+        const unitByTenant = new Map(tenantRecords.map((t) => [t.id, t.unitId]));
 
         const mapped = arrearsRecords.map<Arrear>((record) => ({
           id: `${record.tenant_id}-${record.month}`,
           tenantId: record.tenant_id,
+          unitId: unitByTenant.get(record.tenant_id),
           tenantName: tenantById.get(record.tenant_id) ?? 'Unknown',
           amountDue: record.arrears,
           month: record.month,

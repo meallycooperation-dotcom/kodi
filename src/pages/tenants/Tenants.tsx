@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import TenantCard from '../../components/tenants/TenantCard';
@@ -6,8 +6,8 @@ import TenantTable from '../../components/tenants/TenantTable';
 import useAuth from '../../hooks/useAuth';
 import useRentSettings from '../../hooks/useRentSettings';
 import useTenants from '../../hooks/useTenants';
+import useUnits from '../../hooks/useUnits';
 import { insertRentSetting, insertTenant } from '../../services/tenantService';
-import { fetchUnits } from '../../services/unitService';
 import type { Unit } from '../../types/unit';
 
 const initialForm = {
@@ -24,26 +24,22 @@ const Tenants = () => {
   const { user } = useAuth();
   const { tenants, refresh } = useTenants();
   const { settings } = useRentSettings(user?.id);
-  const [units, setUnits] = useState<Unit[]>([]);
+  const { units } = useUnits('all', user?.id);
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
 
-  useEffect(() => {
-    const loadUnits = async () => {
-      try {
-        const data = await fetchUnits(undefined, 'all', user?.id);
-        setUnits(data);
-      } catch (error) {
-        console.error('Failed to load units', error);
-      }
-    };
+  const filteredTenants = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? tenants
+        : tenants.filter((tenant) => tenant.unitId === selectedUnitId),
+    [tenants, selectedUnitId]
+  );
 
-    if (user?.id) {
-      loadUnits();
-    }
-  }, [user?.id]);
+  const featuredTenant = filteredTenants[0];
 
   const handleChange = (field: keyof typeof initialForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -97,18 +93,33 @@ const Tenants = () => {
     }
   };
 
-  const featuredTenant = tenants[0];
-
   return (
     <section className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1>Tenants</h1>
           <p>Track tenant profiles and rent mode configurations.</p>
         </div>
-        <Button type="button" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Hide Form' : 'Create Tenant'}
-        </Button>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-3">
+          <label className="input-field">
+            <span>Filter by Unit</span>
+            <select
+              value={selectedUnitId}
+              onChange={(e) => setSelectedUnitId(e.target.value as string | 'all')}
+              className="w-full md:w-48 p-2 border rounded-lg"
+            >
+              <option value="all">All Units</option>
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  Unit {unit.unitNumber}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button type="button" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Hide Form' : 'Create Tenant'}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -190,7 +201,7 @@ const Tenants = () => {
           </ul>
         </div>
       )}
-      <TenantTable tenants={tenants} />
+      <TenantTable tenants={filteredTenants} units={units} />
     </section>
   );
 };

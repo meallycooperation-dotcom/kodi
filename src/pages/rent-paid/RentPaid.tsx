@@ -11,18 +11,49 @@ import { formatCurrency } from '../../utils/formatCurrency';
 const RentPaid = () => {
   const { payments, totalCollected } = usePayments();
   const { user } = useAuth();
-  const { units } = useUnits('occupied', user?.id);
+  const { units } = useUnits('all', user?.id);
   const { tenants } = useTenants();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
+
+  const filteredPayments = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? payments
+        : payments.filter((payment) => payment.unitId === selectedUnitId),
+    [payments, selectedUnitId]
+  );
+
+  const filteredUnits = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? units
+        : units.filter((unit) => unit.id === selectedUnitId),
+    [units, selectedUnitId]
+  );
+
+  const filteredTenants = useMemo(
+    () =>
+      selectedUnitId === 'all'
+        ? tenants
+        : tenants.filter((tenant) => tenant.unitId === selectedUnitId),
+    [tenants, selectedUnitId]
+  );
+
+  const filteredTotalCollected = useMemo(
+    () =>
+      filteredPayments.reduce((sum, payment) => sum + payment.amountPaid, 0),
+    [filteredPayments]
+  );
 
   const selectedMonth = useMemo(
-    () => payments[0]?.monthPaidFor ?? new Date().toISOString().slice(0, 7),
-    [payments]
+    () => filteredPayments[0]?.monthPaidFor ?? new Date().toISOString().slice(0, 7),
+    [filteredPayments]
   );
 
   const paymentSums = useMemo(() => {
     const map = new Map<string, { amount: number; name?: string }>();
-    payments
+    filteredPayments
       .filter((payment) => payment.monthPaidFor === selectedMonth)
       .forEach((payment) => {
         const existing = map.get(payment.unitId) ?? { amount: 0, name: payment.tenantName };
@@ -32,20 +63,20 @@ const RentPaid = () => {
         });
       });
     return map;
-  }, [payments, selectedMonth]);
+  }, [filteredPayments, selectedMonth]);
 
   const tenantsByUnit = useMemo(() => {
     const map = new Map<string, string>();
-    tenants.forEach((tenant) => {
+    filteredTenants.forEach((tenant) => {
       if (tenant.unitId) {
         map.set(tenant.unitId, tenant.fullName);
       }
     });
     return map;
-  }, [tenants]);
+  }, [filteredTenants]);
 
   const outstanding = useMemo(() => {
-    const rows = units
+    const rows = filteredUnits
       .map((unit) => {
         const { amount = 0, name } = paymentSums.get(unit.id) ?? {};
         const balance = Math.max(unit.rentAmount - amount, 0);
@@ -61,7 +92,7 @@ const RentPaid = () => {
       .sort((a, b) => b.balance - a.balance);
     const total = rows.reduce((sum, row) => sum + row.balance, 0);
     return { rows, total };
-  }, [paymentSums, tenantsByUnit, units]);
+  }, [paymentSums, tenantsByUnit, filteredUnits]);
 
   const formattedMonth = useMemo(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
@@ -76,8 +107,23 @@ const RentPaid = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1>Rent Paid</h1>
-          <p>Total collected this month: {formatCurrency(totalCollected)}</p>
+          <p>Total collected this month: {formatCurrency(filteredTotalCollected)}</p>
         </div>
+        <label className="input-field">
+          <span>Filter by Unit</span>
+          <select
+            value={selectedUnitId}
+            onChange={(e) => setSelectedUnitId(e.target.value as string | 'all')}
+            className="w-full md:w-48 p-2 border rounded-lg"
+          >
+            <option value="all">All Units</option>
+            {units.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                Unit {unit.unitNumber}
+              </option>
+            ))}
+          </select>
+        </label>
         <Button type="button" onClick={() => setShowPaymentForm((v) => !v)}>
           {showPaymentForm ? 'Hide Form' : 'Record Payment'}
         </Button>
