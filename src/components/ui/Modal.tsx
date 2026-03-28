@@ -8,13 +8,12 @@ type ModalProps = {
 const Modal = ({ title, children }: ModalProps) => (
   <div className="modal-veil">
     <div className="modal-content">
-      <header>
+      <header className="modal-content__header">
         <h2>{title}</h2>
       </header>
-      <div>{children}</div>
+      <div className="modal-content__body">{children}</div>
     </div>
   </div>
 );
 
 export default Modal;
-

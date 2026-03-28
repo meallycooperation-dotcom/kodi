@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Analytics from '../pages/analytics/Analytics';
+import Airbnb from '../pages/airbnb/Airbnb';
 import Dashboard from '../pages/dashboard/Dashboard';
 import Notifications from '../pages/notifications/Notifications';
 import Reminders from '../pages/reminders/Reminders';
@@ -35,8 +36,9 @@ const routes: AppRoute[] = [
   { path: '/analytics', element: withLayout(<Analytics />) },
   { path: '/reminders', element: withLayout(<Reminders />) },
   { path: '/notifications', element: withLayout(<Notifications />) },
-{ path: '/settings', element: withLayout(<Settings />) },
+  { path: '/settings', element: withLayout(<Settings />) },
   { path: '/properties', element: withLayout(<Properties />) },
+  { path: '/airbnb', element: withLayout(<Airbnb />) },
   { path: '/auth/login', element: <Login /> },
   { path: '/auth/signup', element: <Signup /> },
   { path: '/signup', element: <Signup /> }

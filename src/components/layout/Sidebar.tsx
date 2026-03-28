@@ -6,6 +6,7 @@ const sections = [
   { label: 'Arrears', to: '/rent-arrears' },
   { label: 'Tenants', to: '/tenants' },
   { label: 'Properties', to: '/properties' },
+  { label: 'Airbnb', to: '/airbnb' },
   { label: 'Analytics', to: '/analytics' },
   { label: 'Reminders', to: '/reminders' },
   { label: 'Notifications', to: '/notifications' },
