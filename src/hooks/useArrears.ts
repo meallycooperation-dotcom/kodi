@@ -40,7 +40,7 @@ const useArrears = () => {
         const mapped = uniqueArrearsRecords.map<Arrear>((record) => ({
           id: `${record.tenant_id}-${record.month}`,
           tenantId: record.tenant_id,
-          unitId: unitByTenant.get(record.tenant_id),
+          unitId: unitByTenant.get(record.tenant_id) ?? undefined,
           tenantName: tenantById.get(record.tenant_id) ?? 'Unknown',
           amountDue: record.arrears,
           month: record.month,

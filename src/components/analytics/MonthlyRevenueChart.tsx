@@ -79,7 +79,7 @@ const MonthlyRevenueChart = ({ data, width = 600, height = 320 }: MonthlyRevenue
     group
       .append('g')
       .attr('transform', `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale).ticks(preparedData.length).tickFormat(d3.timeFormat('%b %y')))
+      .call(d3.axisBottom(xScale).ticks(preparedData.length).tickFormat((d, i) => d3.timeFormat('%b %y')(d as Date)))
       .selectAll('text')
       .attr('dx', '-0.5em')
       .attr('dy', '0.3em')

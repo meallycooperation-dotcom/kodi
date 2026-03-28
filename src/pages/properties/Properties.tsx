@@ -6,7 +6,9 @@ import { insertHouse } from '../../services/houseService';
 import useAuth from '../../hooks/useAuth';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
+import Modal from '../../components/ui/Modal';
 import { useCurrency } from '../../context/currency';
+import type { Tenant } from '../../types/tenant';
 
 const initialState = {
   unitNumber: '',
@@ -25,6 +27,16 @@ const Properties = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [tenantModal, setTenantModal] = useState<Tenant | null>(null);
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-KE', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }),
+    []
+  );
 
   const displayedUnits = units;
 
@@ -123,6 +135,37 @@ const Properties = () => {
     };
   }, [selectedUnit, occupiedHouseNumbersByUnit]);
 
+  const tenantByHouseNumber = useMemo(() => {
+    if (!selectedUnitId) {
+      return new Map<number, Tenant>();
+    }
+
+    const map = new Map<number, Tenant>();
+    tenants.forEach((tenant) => {
+      if (tenant.unitId !== selectedUnitId || !tenant.houseNumber) {
+        return;
+      }
+
+      const houseNum = Number(tenant.houseNumber);
+      if (Number.isNaN(houseNum)) {
+        return;
+      }
+
+      map.set(houseNum, tenant);
+    });
+
+    return map;
+  }, [tenants, selectedUnitId]);
+
+  const handleHouseClick = (houseNumber: number) => {
+    if (!tenantByHouseNumber.has(houseNumber)) {
+      return;
+    }
+    setTenantModal(tenantByHouseNumber.get(houseNumber) ?? null);
+  };
+
+  const closeTenantModal = () => setTenantModal(null);
+
   const handleChange = (field: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -175,6 +218,10 @@ const Properties = () => {
       setSelectedUnitId(displayedUnits[0].id);
     }
   }, [displayedUnits, selectedUnitId]);
+
+  useEffect(() => {
+    setTenantModal(null);
+  }, [selectedUnitId]);
 
   return (
     <section className="space-y-5">
@@ -258,19 +305,32 @@ const Properties = () => {
         {selectedUnit ? (
           <>
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              {occupancyState.houses.map((house) => (
+            {occupancyState.houses.map((house) => {
+              const occupant = tenantByHouseNumber.get(house.number);
+              return (
                 <div
                   key={house.id}
                   className={`p-4 rounded-lg border-2 text-center font-medium ${
                     house.occupied
-                      ? 'bg-green-100 border-green-300 text-green-800'
+                      ? 'bg-green-100 border-green-300 text-green-800 cursor-pointer'
                       : 'bg-red-100 border-red-300 text-red-800'
                   }`}
+                  onClick={() => occupant && handleHouseClick(house.number)}
+                  onKeyDown={(event) => {
+                    if (!occupant) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleHouseClick(house.number);
+                    }
+                  }}
+                  role={occupant ? 'button' : 'presentation'}
+                  tabIndex={occupant ? 0 : undefined}
                 >
                   <p className="text-sm text-gray-700">House {house.number}</p>
                   <p className="text-lg font-semibold">{house.occupied ? 'Occupied' : 'Vacant'}</p>
                 </div>
-              ))}
+              );
+            })}
             </div>
             <div className="status-grid">
               <article className="status-card status-card--occupied">
@@ -284,6 +344,31 @@ const Properties = () => {
                 <p className="status-card__meta">Needs tenants or in maintenance</p>
               </article>
             </div>
+            {tenantModal && (
+              <Modal title={`Tenant in house ${tenantModal.houseNumber ?? ''}`}>
+                <p className="text-sm text-gray-600">
+                  <strong>Name:</strong> {tenantModal.fullName}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Phone:</strong> {tenantModal.phone ?? 'Not provided'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Email:</strong> {tenantModal.email ?? 'Not provided'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Move-in date:</strong>{' '}
+                  {tenantModal.moveInDate ? dateFormatter.format(new Date(tenantModal.moveInDate)) : 'TBD'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Status:</strong> {tenantModal.status}
+                </p>
+                <div className="mt-4 flex justify-end">
+                  <Button variant="ghost" type="button" onClick={closeTenantModal}>
+                    Close
+                  </Button>
+                </div>
+              </Modal>
+            )}
             
           </>
         ) : (

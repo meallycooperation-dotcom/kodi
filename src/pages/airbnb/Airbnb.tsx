@@ -459,7 +459,7 @@ const Airbnb = () => {
 
       <Card>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-lg">Add a new Airbnb listing</h2>
+          <h2 className="font-semibold text-lg">Add a new Airbnb listings</h2>
           <Button variant="ghost" type="button" onClick={() => setShowForm((prev) => !prev)}>
             {showForm ? 'Hide form' : 'Add listing'}
           </Button>

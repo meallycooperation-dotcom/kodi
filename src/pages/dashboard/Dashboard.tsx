@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import Card from '../../components/ui/Card';
 import KPIStats from '../../components/analytics/KPIStats';
 import OccupancyChart from '../../components/analytics/OccupancyChart';
@@ -15,42 +15,86 @@ import useReminders from '../../hooks/useReminders';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import { useCurrency } from '../../context/currency';
+import { fetchAirbnbListingsByCreator } from '../../services/airbnbService';
+import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
+import type { AirbnbTenant } from '../../types/airbnbTenant';
+import type { Tenant } from '../../types/tenant';
 
 const metricCards = [
   { label: 'Total collected', key: 'totalCollected' },
   { label: 'Tenants paid', key: 'tenantsPaid' },
   { label: 'Overdues', key: 'overdues' },
   { label: 'Balance', key: 'balance' },
+  { label: 'Airbnb earnings', key: 'airbnbEarnings' },
   { label: 'Reminders', key: 'reminders' },
   { label: 'Notifications', key: 'notifications' }
 ];
+
+const isUnitTenant = (tenant: Tenant | AirbnbTenant): tenant is Tenant =>
+  'unitId' in tenant && tenant.unitId != null;
 
 const Dashboard = () => {
   const { formatCurrency } = useCurrency();
   const { user, loading: authLoading } = useAuth();
   const { tenants } = useTenants();
   const { units } = useUnits('all', user?.id);
-  const { payments, totalCollected, tenantsPaidCount, loading: paymentsLoading } = usePayments();
+  const { payments, totalCollected, loading: paymentsLoading } = usePayments();
   const { arrears, totalDue } = useArrears();
   const { reminders } = useReminders();
   const { notifications } = useNotifications();
   const { summary, loading: summaryLoading } = useDashboardSummary();
   const { months } = useMonthlyRevenue();
 
-  const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
+  const [selectedUnitId, setSelectedUnitId] = useState<string | 'all' | 'airbnb'>('all');
+  const [airbnbTenants, setAirbnbTenants] = useState<AirbnbTenant[]>([]);
+  const [loadingAirbnbData, setLoadingAirbnbData] = useState(false);
+  const loadAirbnbData = useCallback(async () => {
+    if (!user?.id) {
+      setAirbnbTenants([]);
+      return;
+    }
 
-  const filteredTenants = useMemo(
-    () =>
-      selectedUnitId === 'all'
-        ? tenants
-        : tenants.filter((tenant) => tenant.unitId === selectedUnitId),
-    [tenants, selectedUnitId]
+    setLoadingAirbnbData(true);
+    try {
+      const listings = await fetchAirbnbListingsByCreator(user.id);
+      const tenants = listings.length
+        ? await fetchAirbnbTenantsByListingIds(listings.map((listing) => listing.id))
+        : [];
+      setAirbnbTenants(tenants);
+    } catch (error) {
+      console.error('loadAirbnbDashboard', error);
+    } finally {
+      setLoadingAirbnbData(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadAirbnbData();
+  }, [loadAirbnbData]);
+
+  const filteredTenants = useMemo(() => {
+    if (selectedUnitId === 'all') {
+      return tenants;
+    }
+
+    if (selectedUnitId === 'airbnb') {
+      return airbnbTenants;
+    }
+
+    return tenants.filter((tenant) => tenant.unitId === selectedUnitId);
+  }, [tenants, airbnbTenants, selectedUnitId]);
+
+  const filteredUnitTenants = useMemo(
+    () => filteredTenants.filter((tenant) => isUnitTenant(tenant)),
+    [filteredTenants]
   );
 
   const filteredPayments = useMemo(
     () =>
       selectedUnitId === 'all'
         ? payments
+        : selectedUnitId === 'airbnb'
+        ? []
         : payments.filter((payment) => payment.unitId === selectedUnitId),
     [payments, selectedUnitId]
   );
@@ -59,24 +103,27 @@ const Dashboard = () => {
     () =>
       selectedUnitId === 'all'
         ? arrears
+        : selectedUnitId === 'airbnb'
+        ? []
         : arrears.filter((arrear) => arrear.unitId && arrear.unitId === selectedUnitId),
     [arrears, selectedUnitId]
   );
 
   const tenantCountsByUnit = useMemo(() => {
     const map = new Map<string, number>();
-    filteredTenants.forEach((tenant) => {
-      if (!tenant.unitId) {
+    filteredUnitTenants.forEach((tenant) => {
+      const unitId = tenant.unitId;
+      if (!unitId) {
         return;
       }
       const isActiveTenant = tenant.status === 'active' || tenant.status === 'late';
       if (!isActiveTenant) {
         return;
       }
-      map.set(tenant.unitId, (map.get(tenant.unitId) ?? 0) + 1);
+      map.set(unitId, (map.get(unitId) ?? 0) + 1);
     });
     return map;
-  }, [filteredTenants]);
+  }, [filteredUnitTenants]);
 
   const totalOverdues = filteredArrears.length;
   const filteredTotalCollected = useMemo(() => {
@@ -93,19 +140,36 @@ const Dashboard = () => {
     return paid.size;
   }, [filteredPayments]);
 
+  const airbnbEarnings = useMemo(
+    () => airbnbTenants.reduce((sum, tenant) => sum + (tenant.totalAmount ?? 0), 0),
+    [airbnbTenants]
+  );
+  const airbnbEarningsDisplay = loadingAirbnbData ? 'Loading...' : formatCurrency(airbnbEarnings);
+
   const totalCollectedValue = filteredTotalCollected;
   const totalArrearsValue = filteredTotalArrears;
   const isLoading = authLoading || paymentsLoading || summaryLoading;
   const balance = totalCollectedValue - totalArrearsValue;
-  const trackedTenants = filteredTenants.filter((t) => t.status === 'active' || t.status === 'late').length;
+  const trackedTenants = useMemo(() => {
+    if (selectedUnitId === 'airbnb') {
+      return filteredTenants.filter((t) => t.status === 'checked_in').length;
+    }
+    return filteredTenants.filter((t) => t.status === 'active' || t.status === 'late').length;
+  }, [filteredTenants, selectedUnitId]);
   const latestMonth = months[0]?.month;
   const summaryStats = [
     { label: 'Tracked tenants', value: `${trackedTenants}` },
     { label: 'Rent collected', value: formatCurrency(totalCollectedValue) },
-    { label: 'Outstanding arrears', value: formatCurrency(totalArrearsValue) }
+    { label: 'Outstanding arrears', value: formatCurrency(totalArrearsValue) },
+    { label: 'Airbnb earnings', value: airbnbEarningsDisplay }
   ];
   
-  const displayUnits = selectedUnitId === 'all' ? units : units.filter((u) => u.id === selectedUnitId);
+  const displayUnits =
+    selectedUnitId === 'all'
+      ? units
+      : selectedUnitId === 'airbnb'
+      ? []
+      : units.filter((u) => u.id === selectedUnitId);
   
   const { occupiedHouses, totalHouses } = useMemo(() => {
     let occupied = 0;
@@ -127,6 +191,7 @@ const Dashboard = () => {
     tenantsPaid: `${filteredTenantsPaid}`,
     overdues: `${totalOverdues}`,
     balance: formatCurrency(balance),
+    airbnbEarnings: airbnbEarningsDisplay,
     reminders: `${reminders.length}`,
     notifications: `${notifications.length}`
   };
@@ -156,10 +221,11 @@ const Dashboard = () => {
           <span>Filter by Unit</span>
           <select
             value={selectedUnitId}
-            onChange={(e) => setSelectedUnitId(e.target.value as string | 'all')}
+            onChange={(e) => setSelectedUnitId(e.target.value as string | 'all' | 'airbnb')}
             className="w-full md:w-48 p-2 border rounded-lg"
           >
             <option value="all">All Units</option>
+            <option value="airbnb">Airbnb listings</option>
             {units.map((unit) => (
               <option key={unit.id} value={unit.id}>
                 Unit {unit.unitNumber}
