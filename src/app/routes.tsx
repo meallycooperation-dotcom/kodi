@@ -3,6 +3,7 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Analytics from '../pages/analytics/Analytics';
 import Airbnb from '../pages/airbnb/Airbnb';
+import Apartments from '../pages/apartments/Apartments';
 import Dashboard from '../pages/dashboard/Dashboard';
 import Notifications from '../pages/notifications/Notifications';
 import Reminders from '../pages/reminders/Reminders';
@@ -13,6 +14,9 @@ import Tenants from '../pages/tenants/Tenants';
 import TenantDetails from '../pages/tenants/TenantDetails';
 import Login from '../pages/auth/Login';
 import Signup from '../pages/auth/Signup';
+import ConfirmEmailSent from '../pages/auth/ConfirmEmailSent';
+import ForgotPassword from '../pages/auth/ForgotPassword';
+import NewPassword from '../pages/auth/NewPassword';
 import Properties from '../pages/properties/Properties';
 
 export type AppRoute = {
@@ -39,8 +43,12 @@ const routes: AppRoute[] = [
   { path: '/settings', element: withLayout(<Settings />) },
   { path: '/properties', element: withLayout(<Properties />) },
   { path: '/airbnb', element: withLayout(<Airbnb />) },
+  { path: '/apartments', element: withLayout(<Apartments />) },
   { path: '/auth/login', element: <Login /> },
   { path: '/auth/signup', element: <Signup /> },
+  { path: '/auth/forgot-password', element: <ForgotPassword /> },
+  { path: '/auth/new-password', element: <NewPassword /> },
+  { path: '/auth/confirm-email', element: <ConfirmEmailSent /> },
   { path: '/signup', element: <Signup /> }
 ];
 

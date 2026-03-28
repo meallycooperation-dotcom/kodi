@@ -94,7 +94,12 @@ const Login = () => {
         </button>
 
         {/* EXTRA LINKS */}
-        <div className="text-center mt-4 text-sm">
+        <div className="text-center mt-4 text-sm space-y-2">
+          <p>
+            <a href="/auth/forgot-password" className="text-purple-600 font-semibold">
+              Forgot password?
+            </a>
+          </p>
           <p>
             Don’t have an account?{" "}
             <a href="/auth/signup" className="text-purple-600 font-semibold">
