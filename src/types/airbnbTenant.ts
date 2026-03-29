@@ -7,8 +7,8 @@ export type AirbnbTenant = {
   fullName: string;
   phone?: string;
   email?: string;
-  checkInDate: string;
-  checkOutDate: string;
+  checkInAt: string;
+  checkOutAt: string;
   totalAmount?: number;
   status: AirbnbTenantStatus;
   createdAt: string;

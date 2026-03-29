@@ -8,8 +8,8 @@ type AirbnbTenantRow = {
   full_name: string;
   phone: string | null;
   email: string | null;
-  check_in_date: string;
-  check_out_date: string;
+  check_in_at: string;
+  check_out_at: string;
   total_amount: number | null;
   status: AirbnbTenantStatus;
   created_at: string;
@@ -23,13 +23,20 @@ const mapAirbnbTenantRow = (row: AirbnbTenantRow): AirbnbTenant => ({
   fullName: row.full_name,
   phone: row.phone ?? undefined,
   email: row.email ?? undefined,
-  checkInDate: row.check_in_date,
-  checkOutDate: row.check_out_date,
+  checkInAt: row.check_in_at,
+  checkOutAt: row.check_out_at,
   totalAmount: row.total_amount ?? undefined,
   status: row.status,
   createdAt: row.created_at,
   roomNumber: row.room_number ?? undefined
 });
+
+const toDateOnly = (timestamp: string) => {
+  if (!timestamp) {
+    return null;
+  }
+  return timestamp.split('T')[0];
+};
 
 export const insertAirbnbTenant = async (payload: {
   userId: string;
@@ -37,8 +44,8 @@ export const insertAirbnbTenant = async (payload: {
   fullName: string;
   phone?: string;
   email?: string;
-  checkInDate: string;
-  checkOutDate: string;
+  checkInAt: string;
+  checkOutAt: string;
   totalAmount?: number;
   status?: AirbnbTenantStatus;
   roomNumber?: string;
@@ -52,11 +59,12 @@ export const insertAirbnbTenant = async (payload: {
         full_name: payload.fullName,
         phone: payload.phone ?? null,
         email: payload.email ?? null,
-        check_in_date: payload.checkInDate,
-        check_out_date: payload.checkOutDate,
+        check_in_at: payload.checkInAt,
+        check_out_at: payload.checkOutAt,
+        check_in_date: toDateOnly(payload.checkInAt),
+        check_out_date: toDateOnly(payload.checkOutAt),
         total_amount: payload.totalAmount ?? null,
-        status: payload.status ?? 'booked'
-        ,
+        status: payload.status ?? 'booked',
         room_number: payload.roomNumber ?? null
       }
     ])
@@ -71,12 +79,14 @@ export const insertAirbnbTenant = async (payload: {
   return mapAirbnbTenantRow(data as AirbnbTenantRow);
 };
 
-export const updateAirbnbTenantDates = async (tenantId: string, payload: { checkInDate: string; checkOutDate: string }) => {
+export const updateAirbnbTenantDates = async (tenantId: string, payload: { checkInAt: string; checkOutAt: string }) => {
   const { data, error } = await supabase
     .from('airbnbtenants')
     .update({
-      check_in_date: payload.checkInDate,
-      check_out_date: payload.checkOutDate
+      check_in_at: payload.checkInAt,
+      check_out_at: payload.checkOutAt,
+      check_in_date: toDateOnly(payload.checkInAt),
+      check_out_date: toDateOnly(payload.checkOutAt)
     })
     .eq('id', tenantId)
     .select('*')

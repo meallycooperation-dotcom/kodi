@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
-import { insertPayment } from '../../services/paymentService';
+import { insertPayment, insertApartmentPayment } from '../../services/paymentService';
 import { fetchUnits } from '../../services/unitService';
 import { fetchTenants } from '../../services/tenantService';
 import type { Unit } from '../../types/unit';
@@ -9,11 +9,28 @@ import type { Tenant } from '../../types/tenant';
 import useAuth from '../../hooks/useAuth';
 import usePayments from '../../hooks/usePayments';
 
-const PaymentForm = () => {
+type PaymentFormProps = {
+  tenants?: Tenant[];
+  units?: Unit[];
+  apartmentId?: string;
+  apartmentBlockId?: string;
+};
+
+type PaymentTenant = Tenant & {
+  houseId?: string | null;
+  houseBlockId?: string | null;
+};
+
+const PaymentForm = ({
+  tenants: tenantOptions,
+  units: unitOptions,
+  apartmentId,
+  apartmentBlockId
+}: PaymentFormProps = {}) => {
   const { user } = useAuth();
   const { refresh } = usePayments();
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [units, setUnits] = useState<Unit[]>(unitOptions ?? []);
+  const [tenants, setTenants] = useState<PaymentTenant[]>(tenantOptions ?? []);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -28,23 +45,48 @@ const PaymentForm = () => {
   });
 
   useEffect(() => {
-    const loadData = async () => {
+    if (unitOptions) {
+      setUnits(unitOptions);
+      return;
+    }
+
+    const loadUnits = async () => {
+      if (!user?.id) {
+        setUnits([]);
+        return;
+      }
       try {
-        const [unitsData, tenantsData] = await Promise.all([
-          fetchUnits(undefined, 'all', user?.id),
-          fetchTenants(user?.id)
-        ]);
+        const unitsData = await fetchUnits(undefined, 'all', user.id);
         setUnits(unitsData);
-        setTenants(tenantsData);
       } catch (error) {
-        console.error('Failed to load data', error);
+        console.error('Failed to load units', error);
       }
     };
 
-    if (user?.id) {
-      loadData();
+    loadUnits();
+  }, [unitOptions, user?.id]);
+
+  useEffect(() => {
+    if (tenantOptions) {
+      setTenants(tenantOptions);
+      return;
     }
-  }, [user?.id]);
+
+    const loadTenants = async () => {
+      if (!user?.id) {
+        setTenants([]);
+        return;
+      }
+      try {
+        const tenantsData = await fetchTenants(user.id);
+        setTenants(tenantsData);
+      } catch (error) {
+        console.error('Failed to load tenants', error);
+      }
+    };
+
+    loadTenants();
+  }, [tenantOptions, user?.id]);
 
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -61,7 +103,7 @@ const PaymentForm = () => {
     setStatus(null);
 
     try {
-      await insertPayment({
+      const paymentPayload = {
         tenantId: form.tenantId,
         unitId: form.unitId,
         amountPaid: parseFloat(form.amountPaid) || 0,
@@ -69,7 +111,31 @@ const PaymentForm = () => {
         monthPaidFor: form.monthPaidFor,
         paymentMethod: form.paymentMethod || undefined,
         reference: form.reference || undefined
-      });
+      };
+
+      if (!apartmentId) {
+        await insertPayment(paymentPayload);
+      } else {
+        const tenantRecord = tenants.find((tenant) => tenant.id === form.tenantId);
+        await insertApartmentPayment({
+          tenantId: form.tenantId,
+          houseId: tenantRecord?.houseId ?? null,
+          blockId: apartmentBlockId ?? tenantRecord?.houseBlockId ?? null,
+          apartmentId,
+          amountPaid: paymentPayload.amountPaid,
+          paymentDate: paymentPayload.paymentDate || undefined,
+          monthPaidFor: paymentPayload.monthPaidFor,
+          paymentMethod: paymentPayload.paymentMethod,
+          reference: paymentPayload.reference
+        });
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('apartment-payment-recorded', {
+              detail: { apartmentId }
+            })
+          );
+        }
+      }
 
       setStatus('Payment recorded successfully.');
       setForm({

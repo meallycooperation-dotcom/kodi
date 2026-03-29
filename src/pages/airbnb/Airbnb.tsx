@@ -40,8 +40,8 @@ type TenantFormState = {
   fullName: string;
   phone: string;
   email: string;
-  checkInDate: string;
-  checkOutDate: string;
+  checkInAt: string;
+  checkOutAt: string;
   totalAmount: string;
   status: AirbnbTenantStatus;
 };
@@ -50,8 +50,8 @@ const initialTenantFormState: TenantFormState = {
   fullName: '',
   phone: '',
   email: '',
-  checkInDate: '',
-  checkOutDate: '',
+  checkInAt: '',
+  checkOutAt: '',
   totalAmount: '',
   status: 'booked'
 };
@@ -119,8 +119,8 @@ const Airbnb = () => {
   const [tenantModal, setTenantModal] = useState<AirbnbTenant | null>(null);
   const [tenantModalLoading, setTenantModalLoading] = useState(false);
   const [tenantModalForm, setTenantModalForm] = useState({
-    checkInDate: '',
-    checkOutDate: ''
+    checkInAt: '',
+    checkOutAt: ''
   });
   const [showForm, setShowForm] = useState(false);
 
@@ -199,13 +199,13 @@ const Airbnb = () => {
 
   useEffect(() => {
     if (!tenantModal) {
-      setTenantModalForm({ checkInDate: '', checkOutDate: '' });
+      setTenantModalForm({ checkInAt: '', checkOutAt: '' });
       return;
     }
 
     setTenantModalForm({
-      checkInDate: tenantModal.checkInDate,
-      checkOutDate: tenantModal.checkOutDate
+      checkInAt: tenantModal.checkInAt,
+      checkOutAt: tenantModal.checkOutAt
     });
   }, [tenantModal]);
 
@@ -254,9 +254,7 @@ const Airbnb = () => {
       return false;
     }
 
-    const checkout = new Date(tenant.checkOutDate);
-    checkout.setHours(23, 59, 59, 999);
-
+    const checkout = new Date(tenant.checkOutAt);
     return checkout.getTime() >= Date.now();
   }, []);
 
@@ -350,7 +348,7 @@ const Airbnb = () => {
       return;
     }
 
-    if (!tenantForm.fullName.trim() || !tenantForm.checkInDate || !tenantForm.checkOutDate) {
+    if (!tenantForm.fullName.trim() || !tenantForm.checkInAt || !tenantForm.checkOutAt) {
       setTenantStatusMessage('Guest name and booking dates are required.');
       return;
     }
@@ -365,11 +363,10 @@ const Airbnb = () => {
         fullName: tenantForm.fullName.trim(),
         phone: tenantForm.phone.trim() || undefined,
         email: tenantForm.email.trim() || undefined,
-        checkInDate: tenantForm.checkInDate,
-        checkOutDate: tenantForm.checkOutDate,
+        checkInAt: tenantForm.checkInAt,
+        checkOutAt: tenantForm.checkOutAt,
         totalAmount: tenantForm.totalAmount ? Number(tenantForm.totalAmount) : undefined,
-        status: tenantForm.status
-        ,
+        status: tenantForm.status,
         roomNumber: selectedRoom
       });
       setTenantStatusMessage(`Guest added for ${selectedRoom}.`);
@@ -390,15 +387,15 @@ const Airbnb = () => {
       return;
     }
 
-    if (!tenantModalForm.checkInDate || !tenantModalForm.checkOutDate) {
+    if (!tenantModalForm.checkInAt || !tenantModalForm.checkOutAt) {
       return;
     }
 
     setTenantModalLoading(true);
     try {
       const updatedTenant = await updateAirbnbTenantDates(tenantModal.id, {
-        checkInDate: tenantModalForm.checkInDate,
-        checkOutDate: tenantModalForm.checkOutDate
+        checkInAt: tenantModalForm.checkInAt,
+        checkOutAt: tenantModalForm.checkOutAt
       });
       setTenantModal(updatedTenant);
       await loadListingTenants(selectedListingId ?? undefined);
@@ -628,19 +625,19 @@ const Airbnb = () => {
                   onChange={(event) => handleTenantChange('email', event.target.value)}
                 />
                 <Input
-                  label="Check-in date"
-                  name="checkInDate"
-                  type="date"
-                  value={tenantForm.checkInDate}
-                  onChange={(event) => handleTenantChange('checkInDate', event.target.value)}
+                  label="Check-in"
+                  name="checkInAt"
+                  type="datetime-local"
+                  value={tenantForm.checkInAt}
+                  onChange={(event) => handleTenantChange('checkInAt', event.target.value)}
                   required
                 />
                 <Input
-                  label="Check-out date"
-                  name="checkOutDate"
-                  type="date"
-                  value={tenantForm.checkOutDate}
-                  onChange={(event) => handleTenantChange('checkOutDate', event.target.value)}
+                  label="Check-out"
+                  name="checkOutAt"
+                  type="datetime-local"
+                  value={tenantForm.checkOutAt}
+                  onChange={(event) => handleTenantChange('checkOutAt', event.target.value)}
                   required
                 />
                 <Input
@@ -686,22 +683,22 @@ const Airbnb = () => {
         <p className="text-sm text-gray-600">
           <strong>Phone:</strong> {tenantModal.phone ?? 'Not provided'}
         </p>
-        <div className="grid gap-3 md:grid-cols-2 mt-2">
-          <Input
-            label="Check-in date"
-            type="date"
-            value={tenantModalForm.checkInDate}
-            onChange={(event) => handleTenantModalChange('checkInDate', event.target.value)}
-          />
-          <Input
-            label="Check-out date"
-            type="date"
-            value={tenantModalForm.checkOutDate}
-            onChange={(event) => handleTenantModalChange('checkOutDate', event.target.value)}
-          />
-        </div>
+          <div className="grid gap-3 md:grid-cols-2 mt-2">
+            <Input
+              label="Check-in"
+              type="datetime-local"
+              value={tenantModalForm.checkInAt}
+              onChange={(event) => handleTenantModalChange('checkInAt', event.target.value)}
+            />
+            <Input
+              label="Check-out"
+              type="datetime-local"
+              value={tenantModalForm.checkOutAt}
+              onChange={(event) => handleTenantModalChange('checkOutAt', event.target.value)}
+            />
+          </div>
         <p className="text-sm text-gray-500 mt-2">
-          Current booking ends: {dateFormatter.format(new Date(tenantModal.checkOutDate))}
+          Current booking ends: {dateFormatter.format(new Date(tenantModal.checkOutAt))}
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <Button type="button" disabled={tenantModalLoading} onClick={handleTenantModalUpdate}>
