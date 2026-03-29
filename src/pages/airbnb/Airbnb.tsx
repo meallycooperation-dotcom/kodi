@@ -445,7 +445,7 @@ const Airbnb = () => {
     <section className="space-y-6">
       
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4 hover:cursor-pointer">
         {summaryHighlights.map((item) => (
           <Card key={item.label} className="min-h-[100px]">
             <p className="text-sm text-gray-500">{item.label}</p>
@@ -573,7 +573,7 @@ const Airbnb = () => {
         {listingTenantError && (
           <p className="text-sm text-red-500 mb-2">{listingTenantError}</p>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 hover:cursor-pointer">
             {roomNumbers.map((room) => {
               const isBooked = bookedRoomNumbers.has(room);
               const bookingClass = isBooked
@@ -599,9 +599,9 @@ const Airbnb = () => {
           </div>
 
           {selectedRoom && (
-            <section className="mt-4 border-t pt-4">
+            <Modal title={`Assign guest to ${selectedRoom}`}>
               <p className="text-sm text-gray-600 mb-2">
-                Assign a guest to <strong>{selectedRoom}</strong>.
+                Provide the guest details and booking dates for <strong>{selectedRoom}</strong>.
               </p>
               <form className="grid gap-4 md:grid-cols-2" onSubmit={handleTenantSubmit}>
                 <Input
@@ -665,12 +665,15 @@ const Airbnb = () => {
                   <Button type="submit" disabled={tenantLoading}>
                     {tenantLoading ? 'Saving...' : 'Assign guest'}
                   </Button>
+                  <Button variant="ghost" type="button" onClick={() => setSelectedRoom(null)}>
+                    Cancel
+                  </Button>
                 </div>
                 {tenantStatusMessage && (
                   <p className="md:col-span-2 text-sm text-gray-600">{tenantStatusMessage}</p>
                 )}
               </form>
-            </section>
+            </Modal>
           )}
         </Card>
       )}

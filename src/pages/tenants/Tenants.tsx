@@ -1,10 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import TenantCard from '../../components/tenants/TenantCard';
 import TenantTable from '../../components/tenants/TenantTable';
 import useAuth from '../../hooks/useAuth';
-import useRentSettings from '../../hooks/useRentSettings';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import { insertRentSetting, insertTenant } from '../../services/tenantService';
@@ -24,7 +22,6 @@ const initialForm = {
 const Tenants = () => {
   const { user } = useAuth();
   const { tenants, refresh } = useTenants();
-  const { settings } = useRentSettings(user?.id);
   const { units } = useUnits('all', user?.id);
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState<string | null>(null);
@@ -73,8 +70,6 @@ const Tenants = () => {
         : tenants.filter((tenant) => tenant.unitId === selectedUnitId),
     [tenants, selectedUnitId]
   );
-
-  const featuredTenant = filteredTenants[0];
 
   const handleChange = (field: keyof typeof initialForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -304,20 +299,6 @@ const Tenants = () => {
       </form>
       )}
 
-      {featuredTenant && <TenantCard tenant={featuredTenant} />}
-      {settings.length > 0 && (
-        <div className="card">
-          <h2>Rent settings</h2>
-          <ul className="space-y-2">
-            {settings.map((setting) => (
-              <li key={setting.id}>
-                <strong>{setting.rent_mode}</strong> · default {setting.default_rent.toLocaleString()} · created{' '}
-                {new Date(setting.created_at).toLocaleDateString()}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       <TenantTable tenants={filteredTenants} units={units} />
     </section>
   );
