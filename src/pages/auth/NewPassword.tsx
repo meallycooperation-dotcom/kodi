@@ -17,11 +17,24 @@ const NewPassword = () => {
   useEffect(() => {
     const restoreSession = async () => {
       setSessionState('loading');
-      const { error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
 
-      if (error) {
+      const { error: initError } = await supabase.auth.initialize();
+      if (initError) {
         setSessionError(
-          error.message || 'We could not verify this password reset link. Please request a new one.'
+          initError.message || 'We could not verify this password reset link. Please request a new one.'
+        );
+        setSessionState('error');
+        return;
+      }
+
+      const {
+        data: { session },
+        error: sessionError
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        setSessionError(
+          sessionError?.message || 'We could not verify this password reset link. Please request a new one.'
         );
         setSessionState('error');
         return;

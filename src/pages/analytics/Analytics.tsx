@@ -29,7 +29,6 @@ const Analytics = () => {
   const [loadingAirbnbData, setLoadingAirbnbData] = useState(false);
   const loadAirbnbData = useCallback(async () => {
     if (!user?.id) {
-      setAirbnbListings([]);
       setAirbnbTenants([]);
       return;
     }
