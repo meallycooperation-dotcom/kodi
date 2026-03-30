@@ -237,23 +237,24 @@ const Dashboard = () => {
           </select>
         </label>
       </div>
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-        {metricCards.map((metric) => (
-          <Card key={metric.key} title={metric.label}>
-            <p className="text-2xl font-semibold">
-              {metricsReady ? metrics[metric.key as keyof typeof metrics] : skeletonBlock}
-            </p>
-          </Card>
-        ))}
-      </div>
-
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Calendar">
           <Calendar />
         </Card>
-        <Card title="Totals">
-          <KPIStats stats={summaryStats} loading={!metricsReady} />
-        </Card>
+        <div className="space-y-4">
+          <Card title="Totals">
+            <KPIStats stats={summaryStats} loading={!metricsReady} />
+          </Card>
+          <section className="grid gap-4 md:grid-cols-3">
+            {metricCards.map((metric) => (
+              <Card key={metric.key} title={metric.label} className="card--rectangular">
+                <p className="text-2xl font-semibold">
+                  {metricsReady ? metrics[metric.key as keyof typeof metrics] : skeletonBlock}
+                </p>
+              </Card>
+            ))}
+          </section>
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
