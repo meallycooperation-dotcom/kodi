@@ -3,6 +3,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { insertUnit } from '../../services/unitService';
 import { insertHouse } from '../../services/houseService';
+import { insertTenant, insertRentSetting } from '../../services/tenantService';
+import { insertPayment, paymentExistsForMonth } from '../../services/paymentService';
 import useAuth from '../../hooks/useAuth';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
@@ -17,10 +19,21 @@ const initialState = {
   status: 'vacant'
 };
 
+const tenantFormInitial = {
+  fullName: '',
+  phone: '',
+  email: '',
+  unitId: '',
+  houseNumber: '',
+  moveInDate: '',
+  rentMode: '',
+  defaultRent: ''
+};
+
 const Properties = () => {
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
-  const { tenants } = useTenants();
+  const { tenants, refresh: refreshTenants } = useTenants();
   const { units, refresh } = useUnits('all', user?.id);
   const [form, setForm] = useState(initialState);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -28,6 +41,11 @@ const Properties = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [tenantModal, setTenantModal] = useState<Tenant | null>(null);
+  const [tenantFormData, setTenantFormData] = useState(tenantFormInitial);
+  const [tenantFormUnitId, setTenantFormUnitId] = useState<string>('');
+  const [tenantFormOpen, setTenantFormOpen] = useState(false);
+  const [tenantFormStatus, setTenantFormStatus] = useState<string | null>(null);
+  const [tenantFormLoading, setTenantFormLoading] = useState(false);
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat('en-KE', {
@@ -157,6 +175,23 @@ const Properties = () => {
     return map;
   }, [tenants, selectedUnitId]);
 
+  const availableTenantFormHouses = useMemo(() => {
+    if (!tenantFormUnitId) return [];
+
+    const selectedUnit = units.find((unit) => unit.id === tenantFormUnitId);
+    if (!selectedUnit) return [];
+
+    const totalHouses = selectedUnit.numberOfHouses ?? 1;
+    const occupiedSet = occupiedHouseNumbersByUnit.get(tenantFormUnitId) ?? new Set<number>();
+
+    return Array.from({ length: totalHouses }, (_, index) => index + 1)
+      .filter((houseNumber) => !occupiedSet.has(houseNumber))
+      .map((houseNumber) => ({
+        id: `${tenantFormUnitId}-house-${houseNumber}`,
+        number: houseNumber
+      }));
+  }, [tenantFormUnitId, units, occupiedHouseNumbersByUnit]);
+
   const handleHouseClick = (houseNumber: number) => {
     if (!tenantByHouseNumber.has(houseNumber)) {
       return;
@@ -164,7 +199,122 @@ const Properties = () => {
     setTenantModal(tenantByHouseNumber.get(houseNumber) ?? null);
   };
 
+  const handleHouseCardClick = (houseNumber: number) => {
+    if (tenantByHouseNumber.has(houseNumber)) {
+      handleHouseClick(houseNumber);
+      return;
+    }
+
+    openTenantFormForHouse(houseNumber);
+  };
+
   const closeTenantModal = () => setTenantModal(null);
+
+  const handleTenantFormChange = (field: keyof typeof tenantFormInitial, value: string) => {
+    setTenantFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleTenantFormUnitChange = (unitId: string) => {
+    setTenantFormUnitId(unitId);
+    const selectedUnit = units.find((unit) => unit.id === unitId);
+    setTenantFormData((prev) => ({
+      ...prev,
+      unitId,
+      houseNumber: '',
+      defaultRent: selectedUnit ? String(selectedUnit.rentAmount || '') : ''
+    }));
+  };
+
+  const handleTenantFormHouseChange = (houseNumber: string) => {
+    setTenantFormData((prev) => ({
+      ...prev,
+      houseNumber
+    }));
+  };
+
+  const openTenantFormForHouse = (houseNumber: number) => {
+    if (!selectedUnit || !user) {
+      return;
+    }
+
+    setTenantFormUnitId(selectedUnit.id);
+    const defaultRentValue = selectedUnit ? String(selectedUnit.rentAmount || '') : '';
+    setTenantFormData({
+      ...tenantFormInitial,
+      unitId: selectedUnit.id,
+      houseNumber: String(houseNumber),
+      defaultRent: defaultRentValue
+    });
+    setTenantFormStatus(null);
+    setTenantFormOpen(true);
+  };
+
+  const closeTenantForm = () => {
+    setTenantFormOpen(false);
+    setTenantFormStatus(null);
+  };
+
+  const handleTenantFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+      setTenantFormStatus('Sign in to add tenants.');
+      return;
+    }
+
+    if (!tenantFormData.unitId || !tenantFormData.houseNumber) {
+      setTenantFormStatus('Select a unit and house first.');
+      return;
+    }
+
+    setTenantFormLoading(true);
+    setTenantFormStatus(null);
+
+    try {
+      const createdTenant = await insertTenant({
+        userId: user.id,
+        unitId: tenantFormData.unitId,
+        houseNumber: tenantFormData.houseNumber,
+        fullName: tenantFormData.fullName,
+        phone: tenantFormData.phone,
+        email: tenantFormData.email,
+        moveInDate: tenantFormData.moveInDate || undefined,
+        status: 'active'
+      });
+
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const paymentExists = await paymentExistsForMonth(createdTenant.id, currentMonth);
+      if (!paymentExists) {
+        const today = new Date().toISOString().split('T')[0];
+        await insertPayment({
+          tenantId: createdTenant.id,
+          unitId: createdTenant.unitId || '',
+          amountPaid: 0,
+          paymentDate: today,
+          monthPaidFor: currentMonth,
+          paymentMethod: 'system',
+          reference: 'Auto-generated due amount for new tenant'
+        });
+      }
+
+      await insertRentSetting({
+        userId: user.id,
+        rentMode: tenantFormData.rentMode || 'monthly',
+        defaultRent: parseFloat(tenantFormData.defaultRent) || 0
+      });
+
+      await refreshTenants();
+      setTenantFormStatus('Successfully added a tenant.');
+      setTenantFormData(tenantFormInitial);
+      setTenantFormOpen(false);
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof Error ? error.message : typeof error === 'string' ? error : 'Failed to create tenant.';
+      setTenantFormStatus(message);
+    } finally {
+      setTenantFormLoading(false);
+    }
+  };
 
   const handleChange = (field: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -227,7 +377,7 @@ const Properties = () => {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1>Propertiess</h1>
+          <h1>Properties</h1>
           <p>Register and monitor every unit across your portfolios.</p>
         </div>
         <Button type="button" onClick={() => setShowForm((v) => !v)}>
@@ -305,32 +455,30 @@ const Properties = () => {
         {selectedUnit ? (
           <>
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {occupancyState.houses.map((house) => {
-              const occupant = tenantByHouseNumber.get(house.number);
-              return (
-                <div
-                  key={house.id}
-                  className={`p-4 rounded-lg border-2 text-center font-medium ${
-                    house.occupied
-                      ? 'bg-green-100 border-green-300 text-green-800 cursor-pointer'
-                      : 'bg-red-100 border-red-300 text-red-800'
-                  }`}
-                  onClick={() => occupant && handleHouseClick(house.number)}
-                  onKeyDown={(event) => {
-                    if (!occupant) return;
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      handleHouseClick(house.number);
-                    }
-                  }}
-                  role={occupant ? 'button' : 'presentation'}
-                  tabIndex={occupant ? 0 : undefined}
-                >
-                  <p className="text-sm text-gray-700">House {house.number}</p>
-                  <p className="text-lg font-semibold">{house.occupied ? 'Occupied' : 'Vacant'}</p>
-                </div>
-              );
-            })}
+              {occupancyState.houses.map((house) => {
+                return (
+                  <div
+                    key={house.id}
+                    className={`p-4 rounded-lg border-2 text-center font-medium ${
+                      house.occupied
+                        ? 'bg-green-100 border-green-300 text-green-800 cursor-pointer'
+                        : 'bg-red-100 border-red-300 text-red-800 cursor-pointer'
+                    }`}
+                    onClick={() => handleHouseCardClick(house.number)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleHouseCardClick(house.number);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <p className="text-sm text-gray-700">House {house.number}</p>
+                    <p className="text-lg font-semibold">{house.occupied ? 'Occupied' : 'Vacant'}</p>
+                  </div>
+                );
+              })}
             </div>
             <div className="status-grid">
               <article className="status-card status-card--occupied">
@@ -364,6 +512,102 @@ const Properties = () => {
                 </p>
                 <div className="mt-4 flex justify-end">
                   <Button variant="ghost" type="button" onClick={closeTenantModal}>
+                    Close
+                  </Button>
+                </div>
+              </Modal>
+            )}
+            {tenantFormOpen && (
+              <Modal title="Add tenant">
+                <form className="tenant-form space-y-4" onSubmit={handleTenantFormSubmit}>
+                  <Input
+                    label="Full name"
+                    name="fullName"
+                    value={tenantFormData.fullName}
+                    onChange={(event) => handleTenantFormChange('fullName', event.target.value)}
+                    required
+                  />
+                  <label className="input-field">
+                    <span>Unit</span>
+                    <select
+                      value={tenantFormUnitId}
+                      onChange={(event) => handleTenantFormUnitChange(event.target.value)}
+                      className="w-full mb-4 p-3 border rounded-lg"
+                      required
+                    >
+                      <option value="">Select a unit</option>
+                      {units.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {`Unit ${unit.unitNumber}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="input-field">
+                    <span>House</span>
+                    {availableTenantFormHouses.length > 0 ? (
+                      <select
+                        value={tenantFormData.houseNumber}
+                        onChange={(event) => handleTenantFormHouseChange(event.target.value)}
+                        className="w-full mb-4 p-3 border rounded-lg"
+                        required
+                      >
+                        <option value="">Select a house</option>
+                        {availableTenantFormHouses.map((house) => (
+                          <option key={house.id} value={String(house.number)}>
+                            House {house.number}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        {tenantFormUnitId
+                          ? 'No available houses in this unit (all occupied or under maintenance).'
+                          : 'Select a unit to choose from its available houses.'}
+                      </p>
+                    )}
+                  </label>
+                  <Input
+                    label="Email"
+                    name="email"
+                    type="email"
+                    value={tenantFormData.email}
+                    onChange={(event) => handleTenantFormChange('email', event.target.value)}
+                  />
+                  <Input
+                    label="Phone"
+                    name="phone"
+                    value={tenantFormData.phone}
+                    onChange={(event) => handleTenantFormChange('phone', event.target.value)}
+                  />
+                  <Input
+                    label="Move-in date"
+                    name="moveInDate"
+                    type="date"
+                    value={tenantFormData.moveInDate}
+                    onChange={(event) => handleTenantFormChange('moveInDate', event.target.value)}
+                  />
+                  <Input
+                    label="Rent mode"
+                    name="rentMode"
+                    value={tenantFormData.rentMode}
+                    onChange={(event) => handleTenantFormChange('rentMode', event.target.value)}
+                    placeholder="e.g. monthly"
+                  />
+                  <Input
+                    label="Default rent"
+                    name="defaultRent"
+                    type="number"
+                    value={tenantFormData.defaultRent}
+                    onChange={(event) => handleTenantFormChange('defaultRent', event.target.value)}
+                  />
+                  <Button type="submit" disabled={tenantFormLoading}>
+                    {tenantFormLoading ? 'Saving…' : 'Create tenant'}
+                  </Button>
+                  {tenantFormStatus && <p>{tenantFormStatus}</p>}
+                </form>
+                <div className="mt-4 flex justify-end">
+                  <Button variant="ghost" type="button" onClick={closeTenantForm}>
                     Close
                   </Button>
                 </div>

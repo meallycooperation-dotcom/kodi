@@ -1,3 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-const TenantCard = ({ tenant }) => (_jsxs("article", { className: "tenant-card", children: [_jsx("h2", { children: tenant.fullName }), _jsxs("p", { children: [_jsx("strong", { children: "Unit:" }), " ", tenant.unitId ?? '—'] }), _jsxs("p", { children: [_jsx("strong", { children: "House:" }), " ", tenant.houseNumber ?? '—'] }), _jsxs("p", { children: [_jsx("strong", { children: "Contact:" }), " ", tenant.phone ?? 'n/a', " \u00B7 ", tenant.email ?? 'n/a'] }), _jsxs("p", { children: [_jsx("strong", { children: "Move-in:" }), " ", tenant.moveInDate ?? '—'] }), _jsxs("p", { children: [_jsx("strong", { children: "Status:" }), " ", tenant.status] })] }));
-export default TenantCard;

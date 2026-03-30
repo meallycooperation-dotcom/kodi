@@ -107,8 +107,7 @@ const Analytics = () => {
   const stats = [
     { label: 'Active tenants', value: `${activeTenantCount}` },
     { label: 'Rent collected', value: formatCurrency(filteredTotalCollected) },
-    { label: 'Rent outstanding', value: formatCurrency(filteredTotalDue) },
-    { label: 'Airbnb earnings', value: airbnbEarningsDisplay }
+    { label: 'Rent outstanding', value: formatCurrency(filteredTotalDue) }
   ];
 
   const occupancyRate = filteredTenants.length

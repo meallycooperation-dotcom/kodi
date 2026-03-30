@@ -218,7 +218,7 @@ const Dashboard = () => {
           )}
         </div>
         <label className="input-field">
-          <span>Filter by Unit</span>
+          <span>Filter by Units</span>
           <select
             value={selectedUnitId}
             onChange={(e) => setSelectedUnitId(e.target.value as string | 'all' | 'airbnb')}

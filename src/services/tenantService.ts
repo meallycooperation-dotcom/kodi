@@ -74,13 +74,18 @@ export const insertTenant = async (payload: NewTenantInput) => {
 };
 
 export const insertRentSetting = async (payload: RentSettingInput) => {
-  const { data, error } = await supabase.from('rent_settings').insert([
-    {
-      user_id: payload.userId,
-      rent_mode: payload.rentMode,
-      default_rent: payload.defaultRent
-    }
-  ]);
+  const { data, error } = await supabase
+    .from('rent_settings')
+    .upsert(
+      {
+        user_id: payload.userId,
+        rent_mode: payload.rentMode,
+        default_rent: payload.defaultRent
+      },
+      { onConflict: 'user_id' }
+    )
+    .select('*')
+    .single();
   handleError(error);
   return data;
 };
