@@ -154,6 +154,8 @@ main {
   border-radius: 0.85rem;
   padding: 1.5rem;
   width: min(92vw, 520px);
+  max-height: 90vh;
+  overflow: hidden;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
 }
 
@@ -165,6 +167,9 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+  max-height: calc(90vh - 80px);
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .auth-page {
