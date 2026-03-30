@@ -186,22 +186,18 @@ export const insertApartmentPayment = async (payload: ApartmentPaymentInput) => 
 };
 
 export type ApartmentPaidViewRow = {
-  payment_id: string;
   tenant_id: string | null;
   full_name: string | null;
   phone_number: string | null;
   house_number: string | null;
   block_name: string | null;
   apartment_name: string | null;
-  amount_paid: number | null;
-  month_paid_for: string | null;
-  payment_date: string | null;
-  payment_method: string | null;
-  reference: string | null;
+  month: string | null;
+  total_paid: number | null;
+  user_id: string | null;
 };
 
 export type ApartmentPaidViewRecord = {
-  paymentId: string;
   tenantId: string | null;
   tenantName?: string;
   phoneNumber?: string;
@@ -209,31 +205,30 @@ export type ApartmentPaidViewRecord = {
   blockName?: string;
   apartmentName?: string;
   amountPaid: number;
-  monthPaidFor?: string;
-  paymentDate?: string;
-  paymentMethod?: string;
-  reference?: string;
+  month?: string;
 };
 
-export const fetchApartmentPaidView = async () => {
-  const { data, error } = await supabase
+export const fetchApartmentPaidView = async (userId?: string) => {
+  let query = supabase
     .from('apartment_paid_view')
     .select('*')
-    .order('payment_date', { ascending: false });
+    .order('month', { ascending: false });
+
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
 
   handleError(error);
   return (data ?? []).map<ApartmentPaidViewRecord>((row) => ({
-    paymentId: row.payment_id,
     tenantId: row.tenant_id,
     tenantName: row.full_name ?? undefined,
     houseNumber: row.house_number ?? undefined,
     blockName: row.block_name ?? undefined,
     apartmentName: row.apartment_name ?? undefined,
-    amountPaid: Number(row.amount_paid ?? 0),
-    monthPaidFor: row.month_paid_for ?? undefined,
-    paymentDate: row.payment_date ?? undefined,
-    paymentMethod: row.payment_method ?? undefined,
-    reference: row.reference ?? undefined,
+    amountPaid: Number(row.total_paid ?? 0),
+    month: row.month ?? undefined,
     phoneNumber: row.phone_number ?? undefined
   }));
 };
@@ -266,8 +261,14 @@ export type ApartmentArrearsViewRecord = {
   balance: number;
 };
 
-export const fetchApartmentArrearsView = async () => {
-  const { data, error } = await supabase.from('apartment_arrears_view').select('*');
+export const fetchApartmentArrearsView = async (userId?: string) => {
+  let query = supabase.from('apartment_arrears_view').select('*');
+
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
   handleError(error);
   return (data ?? []).map<ApartmentArrearsViewRecord>((row) => ({
     tenantId: row.tenant_id,

@@ -69,9 +69,8 @@ const Signup = () => {
 
       if (profileError) throw profileError;
 
-      alert("Account created successfully 🎉");
-      localStorage.setItem('pendingVerificationEmail', trimmedEmail);
-      navigate('/auth/confirm-email', { state: { email: trimmedEmail } });
+      alert("Account created successfully 🎉 Check your email for a confirmation link.");
+      navigate('/auth/login');
     } catch (err: any) {
       alert(err.message || "Sign up failed");
     } finally {

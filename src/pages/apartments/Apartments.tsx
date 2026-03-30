@@ -119,8 +119,8 @@ export default function ApartmentManager() {
     }
 
     const [paid, arrears] = await Promise.all([
-      fetchApartmentPaidView(),
-      fetchApartmentArrearsView()
+      fetchApartmentPaidView(userId),
+      fetchApartmentArrearsView(userId)
     ]);
 
     setPaidViewRecords(paid);
