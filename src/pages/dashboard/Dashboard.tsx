@@ -23,12 +23,8 @@ import { formatAmount } from '../../utils/formatters';
 
 const metricCards = [
   { label: 'Total collected', key: 'totalCollected' },
-  { label: 'Tenants paid', key: 'tenantsPaid' },
-  { label: 'Overdues', key: 'overdues' },
   { label: 'Balance', key: 'balance' },
-  { label: 'Airbnb earnings', key: 'airbnbEarnings' },
-  { label: 'Reminders', key: 'reminders' },
-  { label: 'Notifications', key: 'notifications' }
+  { label: 'Airbnb earnings', key: 'airbnbEarnings' }
 ];
 
 const isUnitTenant = (tenant: Tenant | AirbnbTenant): tenant is Tenant =>
@@ -164,7 +160,11 @@ const Dashboard = () => {
     { label: 'Tracked tenants', value: `${trackedTenants}` },
     { label: 'Rent collected', value: formatAmount(totalCollectedValue), unit: 'ksh' },
     { label: 'Outstanding arrears', value: formatAmount(totalArrearsValue), unit: 'ksh' },
-    { label: 'Airbnb earnings', value: airbnbEarningsKpiValue, unit: 'ksh' }
+    { label: 'Airbnb earnings', value: airbnbEarningsKpiValue, unit: 'ksh' },
+    { label: 'Tenants paid', value: `${filteredTenantsPaid}` },
+    { label: 'Overdues', value: `${totalOverdues}` },
+    { label: 'Reminders', value: `${reminders.length}` },
+    { label: 'Notifications', value: `${notifications.length}` }
   ];
   
   const displayUnits =
