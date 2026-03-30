@@ -16,6 +16,7 @@ import {
 import type { AirbnbListing, AirbnbStatus } from '../../types/airbnb';
 import type { AirbnbTenant, AirbnbTenantStatus } from '../../types/airbnbTenant';
 import Modal from '../../components/ui/Modal';
+import { useCurrency } from '../../context/currency';
 
 const statusOptions: AirbnbStatus[] = ['available', 'occupied', 'maintenance'];
 const tenantStatusOptions: AirbnbTenantStatus[] = ['booked', 'checked_in', 'checked_out', 'cancelled'];
@@ -89,14 +90,6 @@ const Airbnb = () => {
   const [loading, setLoading] = useState(false);
   const [listings, setListings] = useState<AirbnbListing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
-  const currencyFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat('en-KE', {
-        style: 'currency',
-        currency: 'KES'
-      }),
-    []
-  );
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
@@ -106,6 +99,7 @@ const Airbnb = () => {
       }),
     []
   );
+  const { formatCurrency } = useCurrency();
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [tenantForm, setTenantForm] = useState<TenantFormState>(initialTenantFormState);
@@ -311,10 +305,10 @@ const Airbnb = () => {
       },
       {
         label: 'Total earnings',
-        value: loadingAllTenants ? 'Loading...' : currencyFormatter.format(totalEarnings)
+        value: loadingAllTenants ? 'Loading...' : formatCurrency(totalEarnings)
       }
     ];
-  }, [totalListings, bookedRoomsCount, availableRoomsCount, totalEarnings, loadingListings, loadingAllTenants, currencyFormatter]);
+  }, [totalListings, bookedRoomsCount, availableRoomsCount, totalEarnings, loadingListings, loadingAllTenants, formatCurrency]);
 
   const handleRoomClick = (roomNumber: string) => {
     const isBooked = bookedRoomNumbers.has(roomNumber);
@@ -555,7 +549,7 @@ const Airbnb = () => {
                     Rooms: {listing.roomNumbers ?? 'Not specified'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    {currencyFormatter.format(listing.pricePerNight)} per night
+                    {formatCurrency(listing.pricePerNight)} per night
                   </p>
                 </article>
               );

@@ -11,18 +11,23 @@ import {
   ApartmentPaidViewRecord,
   ApartmentArrearsViewRecord
 } from '../../services/paymentService';
-
-const currencyFormatter = new Intl.NumberFormat('en-KE', {
-  style: 'currency',
-  currency: 'KES',
-  maximumFractionDigits: 2
-});
-
-const formatCurrency = (value: number) => currencyFormatter.format(value);
+import { useCurrency } from '../../context/currency';
 
 export default function ApartmentManager() {
   const { user } = useAuth();
   const userId = user?.id;
+  const { formatCurrency } = useCurrency();
+
+  const formatBlockPrice = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    const amount = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(amount)) {
+      return String(value);
+    }
+    return formatCurrency(amount);
+  };
 
   const [apartments, setApartments] = useState<any[]>([]);
   const [blocks, setBlocks] = useState<any[]>([]);
@@ -486,16 +491,7 @@ export default function ApartmentManager() {
               <span>Bedrooms: {selectedBlock.bedrooms}</span>
             )}
             {selectedBlock.price != null && (
-              <span>
-                Price:{' '}
-                {Number.isNaN(Number(selectedBlock.price))
-                  ? selectedBlock.price
-                  : Number(selectedBlock.price).toLocaleString('en-KE', {
-                      style: 'currency',
-                      currency: 'KES',
-                      maximumFractionDigits: 2
-                    })}
-              </span>
+              <span>Price: {formatBlockPrice(selectedBlock.price)}</span>
             )}
           </div>
 

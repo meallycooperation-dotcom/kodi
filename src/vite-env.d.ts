@@ -6,5 +6,5 @@ declare module '*.css' {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_FREECURRENCY_API_KEY: string;
+  readonly VITE_EXCHANGERATE_API_KEY: string;
 }

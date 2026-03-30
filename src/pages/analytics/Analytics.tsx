@@ -12,12 +12,13 @@ import useAuth from '../../hooks/useAuth';
 import { fetchAirbnbListingsByCreator } from '../../services/airbnbService';
 import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
 import type { AirbnbTenant } from '../../types/airbnbTenant';
-import { formatAmount } from '../../utils/formatters';
+import { useCurrency } from '../../context/currency';
 
 type FilterScope = string | 'all' | 'airbnb';
 
 const Analytics = () => {
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
   const { tenants } = useTenants();
   const { payments, totalCollected } = usePayments();
   const { arrears } = useArrears();
@@ -94,7 +95,7 @@ const Analytics = () => {
     () => airbnbTenants.reduce((sum, tenant) => sum + (tenant.totalAmount ?? 0), 0),
     [airbnbTenants]
   );
-  const airbnbEarningsKpiValue = loadingAirbnbData ? 'Loading...' : formatAmount(airbnbEarnings);
+  const airbnbEarningsDisplay = loadingAirbnbData ? 'Loading...' : formatCurrency(airbnbEarnings);
 
   const activeTenantCount = useMemo(() => {
     if (selectedUnitId === 'airbnb') {
@@ -105,9 +106,9 @@ const Analytics = () => {
 
   const stats = [
     { label: 'Active tenants', value: `${activeTenantCount}` },
-    { label: 'Rent collected', value: formatAmount(filteredTotalCollected), unit: 'ksh' },
-    { label: 'Rent outstanding', value: formatAmount(filteredTotalDue), unit: 'ksh' },
-    { label: 'Airbnb earnings', value: airbnbEarningsKpiValue, unit: 'ksh' }
+    { label: 'Rent collected', value: formatCurrency(filteredTotalCollected) },
+    { label: 'Rent outstanding', value: formatCurrency(filteredTotalDue) },
+    { label: 'Airbnb earnings', value: airbnbEarningsDisplay }
   ];
 
   const occupancyRate = filteredTenants.length

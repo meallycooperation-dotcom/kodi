@@ -5,8 +5,8 @@ const STORAGE_KEY = 'kodi_selected_currency';
 const DEFAULT_CURRENCY = 'KES';
 const BASE_CURRENCY = 'KES';
 const API_BASE = 'USD';
-const API_KEY = import.meta.env.VITE_FREECURRENCY_API_KEY;
-const API_URL = API_KEY ? `https://api.freecurrencyapi.com/v1/latest?apikey=${API_KEY}` : undefined;
+const API_KEY = import.meta.env.VITE_EXCHANGERATE_API_KEY;
+const API_URL = API_KEY ? `https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${API_BASE}` : undefined;
 
 type CurrencyContextValue = {
   selectedCurrency: string;
@@ -53,10 +53,14 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
           throw new Error(`Failed to load currency rates (${response.status})`);
         }
         const payload = await response.json();
-        const currencyData = payload?.data;
-        const payloadBase = typeof payload?.base === 'string' ? payload.base : API_BASE;
-        if (currencyData && typeof currencyData === 'object') {
-          const normalizedRates = Object.entries(currencyData).reduce<Record<string, number>>((acc, [key, value]) => {
+        if (payload?.result !== 'success') {
+          const errorType = payload?.['error-type'] ?? 'unknown error';
+          throw new Error(`Currency API error: ${errorType}`);
+        }
+        const conversionRates = payload?.conversion_rates;
+        const payloadBase = typeof payload?.base_code === 'string' ? payload.base_code : API_BASE;
+        if (conversionRates && typeof conversionRates === 'object') {
+          const normalizedRates = Object.entries(conversionRates).reduce<Record<string, number>>((acc, [key, value]) => {
             if (typeof value === 'number') {
               acc[key.toUpperCase()] = value;
             }

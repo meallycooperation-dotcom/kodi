@@ -19,7 +19,6 @@ import { fetchAirbnbListingsByCreator } from '../../services/airbnbService';
 import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
 import type { AirbnbTenant } from '../../types/airbnbTenant';
 import type { Tenant } from '../../types/tenant';
-import { formatAmount } from '../../utils/formatters';
 
 const isUnitTenant = (tenant: Tenant | AirbnbTenant): tenant is Tenant =>
   'unitId' in tenant && tenant.unitId != null;
@@ -148,13 +147,11 @@ const Dashboard = () => {
     return filteredTenants.filter((t) => t.status === 'active' || t.status === 'late').length;
   }, [filteredTenants, selectedUnitId]);
   const latestMonth = months[0]?.month;
-  const airbnbEarningsKpiValue = loadingAirbnbData ? 'Loading...' : formatAmount(airbnbEarnings);
-
   const summaryStats = [
     { label: 'Tracked tenants', value: `${trackedTenants}` },
-    { label: 'Rent collected', value: formatAmount(totalCollectedValue), unit: 'ksh' },
-    { label: 'Outstanding arrears', value: formatAmount(totalArrearsValue), unit: 'ksh' },
-    { label: 'Airbnb earnings', value: airbnbEarningsKpiValue, unit: 'ksh' },
+    { label: 'Rent collected', value: formatCurrency(totalCollectedValue) },
+    { label: 'Outstanding arrears', value: formatCurrency(totalArrearsValue) },
+    { label: 'Airbnb earnings', value: airbnbEarningsDisplay },
     { label: 'Tenants paid', value: `${filteredTenantsPaid}` },
     { label: 'Overdues', value: `${totalOverdues}` },
     { label: 'Reminders', value: `${reminders.length}` },
