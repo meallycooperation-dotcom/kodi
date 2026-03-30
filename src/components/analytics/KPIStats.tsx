@@ -1,12 +1,13 @@
 type KPIStat = {
   label: string;
   value: string;
+  unit?: string;
 };
 
 const defaultStats: KPIStat[] = [
   { label: 'Occupancy', value: '92%' },
   { label: 'Collection rate', value: '98%' },
-  { label: 'Avg. rent', value: 'Ksh. 1,150' }
+  { label: 'Avg. rent', value: '1,150', unit: 'ksh' }
 ];
 
 type KPIStatsProps = {
@@ -25,7 +26,10 @@ const KPIStats = ({ stats = defaultStats, loading = false }: KPIStatsProps) => (
             stat.value
           )}
         </p>
-        <small>{stat.label}</small>
+        <small className="text-xs text-gray-500">
+          {stat.label}
+          {stat.unit ? ` (${stat.unit})` : ''}
+        </small>
       </article>
     ))}
   </div>

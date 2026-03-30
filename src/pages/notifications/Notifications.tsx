@@ -8,7 +8,7 @@ const Notifications = () => {
     return (
       <section className="space-y-4">
         <div className="page-header">
-          <h1>Notifications</h1>
+          <h1>Notificationss</h1>
         </div>
         <p>Loading notifications…</p>
       </section>

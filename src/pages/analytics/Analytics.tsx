@@ -9,19 +9,18 @@ import useArrears from '../../hooks/useArrears';
 import useMonthlyRevenue from '../../hooks/useMonthlyRevenue';
 import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
-import { useCurrency } from '../../context/currency';
 import { fetchAirbnbListingsByCreator } from '../../services/airbnbService';
 import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
 import type { AirbnbTenant } from '../../types/airbnbTenant';
+import { formatAmount } from '../../utils/formatters';
 
 type FilterScope = string | 'all' | 'airbnb';
 
 const Analytics = () => {
-  const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const { tenants } = useTenants();
   const { payments, totalCollected } = usePayments();
-  const { arrears, totalDue } = useArrears();
+  const { arrears } = useArrears();
   const { units } = useUnits('all', user?.id);
   const { months } = useMonthlyRevenue();
   const [selectedUnitId, setSelectedUnitId] = useState<FilterScope>('all');
@@ -95,7 +94,7 @@ const Analytics = () => {
     () => airbnbTenants.reduce((sum, tenant) => sum + (tenant.totalAmount ?? 0), 0),
     [airbnbTenants]
   );
-  const airbnbEarningsDisplay = loadingAirbnbData ? 'Loading...' : formatCurrency(airbnbEarnings);
+  const airbnbEarningsKpiValue = loadingAirbnbData ? 'Loading...' : formatAmount(airbnbEarnings);
 
   const activeTenantCount = useMemo(() => {
     if (selectedUnitId === 'airbnb') {
@@ -106,8 +105,9 @@ const Analytics = () => {
 
   const stats = [
     { label: 'Active tenants', value: `${activeTenantCount}` },
-    { label: 'Rent collected', value: formatCurrency(filteredTotalCollected) },
-    { label: 'Rent outstanding', value: formatCurrency(filteredTotalDue) }
+    { label: 'Rent collected', value: formatAmount(filteredTotalCollected), unit: 'ksh' },
+    { label: 'Rent outstanding', value: formatAmount(filteredTotalDue), unit: 'ksh' },
+    { label: 'Airbnb earnings', value: airbnbEarningsKpiValue, unit: 'ksh' }
   ];
 
   const occupancyRate = filteredTenants.length
