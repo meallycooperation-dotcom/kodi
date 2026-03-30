@@ -21,12 +21,6 @@ import type { AirbnbTenant } from '../../types/airbnbTenant';
 import type { Tenant } from '../../types/tenant';
 import { formatAmount } from '../../utils/formatters';
 
-const metricCards = [
-  { label: 'Total collected', key: 'totalCollected' },
-  { label: 'Balance', key: 'balance' },
-  { label: 'Airbnb earnings', key: 'airbnbEarnings' }
-];
-
 const isUnitTenant = (tenant: Tenant | AirbnbTenant): tenant is Tenant =>
   'unitId' in tenant && tenant.unitId != null;
 
@@ -189,19 +183,7 @@ const Dashboard = () => {
     ? `${Math.round((occupiedHouses / totalHouses) * 100)}%`
     : '0%';
 
-  const metrics = {
-    totalCollected: formatCurrency(totalCollectedValue),
-    tenantsPaid: `${filteredTenantsPaid}`,
-    overdues: `${totalOverdues}`,
-    balance: formatCurrency(balance),
-    airbnbEarnings: airbnbEarningsDisplay,
-    reminders: `${reminders.length}`,
-    notifications: `${notifications.length}`
-  };
   const metricsReady = !paymentsLoading && !summaryLoading;
-  const skeletonBlock = (
-    <span className="inline-block h-6 w-20 animate-pulse rounded bg-gray-200" aria-hidden="true" />
-  );
 
   return (
     <section className="space-y-6">
@@ -245,15 +227,6 @@ const Dashboard = () => {
           <Card title="Totals">
             <KPIStats stats={summaryStats} loading={!metricsReady} />
           </Card>
-          <section className="grid gap-4 md:grid-cols-3">
-            {metricCards.map((metric) => (
-              <Card key={metric.key} title={metric.label} className="card--rectangular">
-                <p className="text-2xl font-semibold">
-                  {metricsReady ? metrics[metric.key as keyof typeof metrics] : skeletonBlock}
-                </p>
-              </Card>
-            ))}
-          </section>
         </div>
       </div>
 
