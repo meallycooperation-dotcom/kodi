@@ -19,6 +19,7 @@ import ForgotPassword from '../pages/auth/ForgotPassword';
 import NewPassword from '../pages/auth/NewPassword';
 import Properties from '../pages/properties/Properties';
 import Plan from '../pages/plan/Plan';
+import PaymentCallback from '../pages/payments/PaymentCallback';
 
 export type AppRoute = {
   path: string;
@@ -42,6 +43,7 @@ const routes: AppRoute[] = [
   { path: '/reminders', element: withLayout(<Reminders />) },
   { path: '/notifications', element: withLayout(<Notifications />) },
   { path: '/plan', element: withLayout(<Plan />) },
+  { path: '/payment/callback', element: <PaymentCallback /> },
   { path: '/settings', element: withLayout(<Settings />) },
   { path: '/properties', element: withLayout(<Properties />) },
   { path: '/airbnb', element: withLayout(<Airbnb />) },
