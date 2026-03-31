@@ -14,6 +14,7 @@ const useArrears = () => {
   const { user } = useAuth();
   const [arrears, setArrears] = useState<Arrear[]>([]);
   const [tenantBalances, setTenantBalances] = useState<TenantArrearBalance[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -21,9 +22,11 @@ const useArrears = () => {
     if (!user?.id) {
       setArrears([]);
       setTenantBalances([]);
+      setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
     (async () => {
       try {
         const [arrearsRecords, tenantRecords, apartmentArrearsRecords, apartmentPaidRecords] =
@@ -117,6 +120,11 @@ const useArrears = () => {
       } catch (error) {
         console.error('useArrears error', error);
       }
+      finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
     })();
 
     return () => {
@@ -126,7 +134,7 @@ const useArrears = () => {
 
   const totalDue = arrears.reduce((sum, entry) => sum + entry.amountDue, 0);
 
-  return { arrears, totalDue, tenantBalances };
+  return { arrears, totalDue, tenantBalances, isLoading };
 };
 
 export default useArrears;

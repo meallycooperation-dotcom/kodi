@@ -9,6 +9,8 @@ import useAuth from '../../hooks/useAuth';
 import { useCurrency } from '../../context/currency';
 import { supabase } from '../../lib/supabaseClient';
 import type { Tenant } from '../../types/tenant';
+import useApartmentPayments from '../../hooks/useApartmentPayments';
+import PageLoader from '../../components/ui/PageLoader';
 
 const RentPaid = () => {
   const { formatCurrency } = useCurrency();
@@ -16,6 +18,7 @@ const RentPaid = () => {
   const { user } = useAuth();
   const { units } = useUnits('all', user?.id);
   const { tenants } = useTenants();
+  const { apartmentPayments, loading: apartmentPaymentsLoading } = useApartmentPayments();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
   const [apartments, setApartments] = useState<any[]>([]);
@@ -55,6 +58,8 @@ const RentPaid = () => {
     }
     return apartmentTenantsInApartment.filter((tenant) => tenant.houseBlockId === selectedBlockId);
   }, [apartmentTenantsInApartment, selectedBlockId]);
+
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadApartments = async () => {
@@ -147,7 +152,10 @@ const RentPaid = () => {
       setApartmentTenants(mapped);
     };
 
-    loadApartments();
+    setIsLoading(true);
+    loadApartments().finally(() => {
+      setIsLoading(false);
+    });
   }, [user?.id]);
 
   useEffect(() => {
@@ -243,8 +251,10 @@ const RentPaid = () => {
     return new Set(filteredTenants.map((tenant) => tenant.id));
   }, [filteredTenants, selectedBlockId, blockPrefix]);
 
+  const allPayments = useMemo(() => [...payments, ...apartmentPayments], [payments, apartmentPayments]);
+
   const paymentsAfterFilters = useMemo(() => {
-    let rows = payments;
+    let rows = allPayments;
     if (selectedApartmentId !== 'all') {
       rows = rows.filter((payment) => unitsByProperty.has(payment.unitId));
     }
@@ -252,7 +262,7 @@ const RentPaid = () => {
       rows = rows.filter((payment) => tenantIdsInBlock.has(payment.tenantId));
     }
     return rows;
-  }, [payments, selectedApartmentId, unitsByProperty, tenantIdsInBlock, selectedBlockId]);
+  }, [allPayments, selectedApartmentId, unitsByProperty, tenantIdsInBlock, selectedBlockId]);
 
   const filteredPayments = useMemo(
     () =>
@@ -344,6 +354,10 @@ const RentPaid = () => {
     return new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
   }, [selectedMonth]);
 
+  if (isLoading || apartmentPaymentsLoading) {
+    return <PageLoader message="Loading rent payments..." />;
+  }
+
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -391,33 +405,33 @@ const RentPaid = () => {
               <> ({apartmentsFilterBlocks.length} block{apartmentsFilterBlocks.length === 1 ? '' : 's'})</>
             )}
           </span>
-        <select
-          value={selectedUnitId}
-          onChange={(e) => setSelectedUnitId(e.target.value as string | 'all')}
-          className="w-full md:w-48 p-2 border rounded-lg"
-        >
-          <option value="all">All Units</option>
-          {unitsForDropdown.map((unit) => (
-            <option key={unit.id} value={unit.id}>
-              {selectedApartmentId !== 'all'
-                ? apartments.find((apt) => apt.id === unit.id)?.name ?? unit.unitNumber ?? unit.id
-                : `Unit ${unit.unitNumber ?? unit.id}`}
-            </option>
-          ))}
-          {filteredUnits.length === 0 &&
-            selectedApartmentId !== 'all' &&
-            apartmentsFilterBlocks.length > 0 &&
-            apartmentsFilterBlocks.map((block) => (
-              <option key={`block-${block.id}`} value="" disabled>
-                Block {block.block_name} (no units yet)
+          <select
+            value={selectedUnitId}
+            onChange={(e) => setSelectedUnitId(e.target.value as string | 'all')}
+            className="w-full md:w-48 p-2 border rounded-lg"
+          >
+            <option value="all">All Units</option>
+            {unitsForDropdown.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {selectedApartmentId !== 'all'
+                  ? apartments.find((apt) => apt.id === unit.id)?.name ?? unit.unitNumber ?? unit.id
+                  : `Unit ${unit.unitNumber ?? unit.id}`}
               </option>
             ))}
-        </select>
-      </label>
-      <Button type="button" onClick={() => setShowPaymentForm((v) => !v)}>
-        {showPaymentForm ? 'Hide Form' : 'Record Payment'}
-      </Button>
-    </div>
+            {filteredUnits.length === 0 &&
+              selectedApartmentId !== 'all' &&
+              apartmentsFilterBlocks.length > 0 &&
+              apartmentsFilterBlocks.map((block) => (
+                <option key={`block-${block.id}`} value="" disabled>
+                  Block {block.block_name} (no units yet)
+                </option>
+              ))}
+          </select>
+        </label>
+        <Button type="button" onClick={() => setShowPaymentForm((v) => !v)}>
+          {showPaymentForm ? 'Hide Form' : 'Record Payment'}
+        </Button>
+      </div>
 
       {showPaymentForm && (
         <PaymentForm

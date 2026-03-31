@@ -14,9 +14,14 @@ import usePayments from '../../hooks/usePayments';
 import useReminders from '../../hooks/useReminders';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
+import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
 import { useCurrency } from '../../context/currency';
 import { fetchAirbnbListingsByCreator } from '../../services/airbnbService';
 import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
+import {
+  fetchApartmentPaidView,
+  type ApartmentPaidViewRecord
+} from '../../services/paymentService';
 import type { AirbnbTenant } from '../../types/airbnbTenant';
 import type { Tenant } from '../../types/tenant';
 
@@ -34,6 +39,9 @@ const Dashboard = () => {
   const { notifications } = useNotifications();
   const { summary, loading: summaryLoading } = useDashboardSummary();
   const { months } = useMonthlyRevenue();
+  const { totalTenants: apartmentTenantTotal, loading: apartmentTenantLoading } = useApartmentTenantTracker();
+  const [apartmentPaidRecords, setApartmentPaidRecords] = useState<ApartmentPaidViewRecord[]>([]);
+  const [apartmentPaidLoading, setApartmentPaidLoading] = useState(false);
 
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all' | 'airbnb'>('all');
   const [airbnbTenants, setAirbnbTenants] = useState<AirbnbTenant[]>([]);
@@ -61,6 +69,39 @@ const Dashboard = () => {
   useEffect(() => {
     loadAirbnbData();
   }, [loadAirbnbData]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadApartmentPaid = async () => {
+      if (!user?.id) {
+        if (mounted) {
+          setApartmentPaidRecords([]);
+        }
+        return;
+      }
+
+      setApartmentPaidLoading(true);
+      try {
+        const records = await fetchApartmentPaidView(user.id);
+        if (mounted) {
+          setApartmentPaidRecords(records);
+        }
+      } catch (error) {
+        console.error('loadApartmentPaidView error', error);
+      } finally {
+        if (mounted) {
+          setApartmentPaidLoading(false);
+        }
+      }
+    };
+
+    loadApartmentPaid();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
 
   const filteredTenants = useMemo(() => {
     if (selectedUnitId === 'all') {
@@ -139,7 +180,6 @@ const Dashboard = () => {
   const totalCollectedValue = filteredTotalCollected;
   const totalArrearsValue = filteredTotalArrears;
   const isLoading = authLoading || paymentsLoading || summaryLoading;
-  const balance = totalCollectedValue - totalArrearsValue;
   const trackedTenants = useMemo(() => {
     if (selectedUnitId === 'airbnb') {
       return filteredTenants.filter((t) => t.status === 'checked_in').length;
@@ -147,8 +187,13 @@ const Dashboard = () => {
     return filteredTenants.filter((t) => t.status === 'active' || t.status === 'late').length;
   }, [filteredTenants, selectedUnitId]);
   const latestMonth = months[0]?.month;
+  const apartmentEarningsValue = apartmentPaidRecords.reduce((sum, record) => sum + record.amountPaid, 0);
+  const apartmentEarningsDisplay = apartmentPaidLoading ? 'Loading...' : formatCurrency(apartmentEarningsValue);
+  const apartmentTenantCount = apartmentTenantTotal;
   const summaryStats = [
     { label: 'Tracked tenants', value: `${trackedTenants}` },
+    { label: 'Apartment earnings', value: apartmentEarningsDisplay },
+    { label: 'Apartment tenants', value: `${apartmentTenantCount}` },
     { label: 'Rent collected', value: formatCurrency(totalCollectedValue) },
     { label: 'Outstanding arrears', value: formatCurrency(totalArrearsValue) },
     { label: 'Airbnb earnings', value: airbnbEarningsDisplay },
@@ -180,7 +225,8 @@ const Dashboard = () => {
     ? `${Math.round((occupiedHouses / totalHouses) * 100)}%`
     : '0%';
 
-  const metricsReady = !paymentsLoading && !summaryLoading;
+  const metricsReady =
+    !paymentsLoading && !summaryLoading && !apartmentPaidLoading && !apartmentTenantLoading;
 
   return (
     <section className="space-y-6">

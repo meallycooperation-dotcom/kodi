@@ -63,6 +63,7 @@ export default function ApartmentManager() {
   const [apartmentHouses, setApartmentHouses] = useState<any[]>([]);
   const [paidViewRecords, setPaidViewRecords] = useState<ApartmentPaidViewRecord[]>([]);
   const [arrearsViewRecords, setArrearsViewRecords] = useState<ApartmentArrearsViewRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchApartments = async () => {
     if (!userId) {
@@ -117,19 +118,25 @@ export default function ApartmentManager() {
   };
 
   const loadApartmentViews = useCallback(async () => {
+    setIsLoading(true);
     if (!userId) {
       setPaidViewRecords([]);
       setArrearsViewRecords([]);
+      setIsLoading(false);
       return;
     }
 
-    const [paid, arrears] = await Promise.all([
-      fetchApartmentPaidView(userId),
-      fetchApartmentArrearsView(userId)
-    ]);
+    try {
+      const [paid, arrears] = await Promise.all([
+        fetchApartmentPaidView(userId),
+        fetchApartmentArrearsView(userId)
+      ]);
 
-    setPaidViewRecords(paid);
-    setArrearsViewRecords(arrears);
+      setPaidViewRecords(paid);
+      setArrearsViewRecords(arrears);
+    } finally {
+      setIsLoading(false);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -407,8 +414,39 @@ export default function ApartmentManager() {
     [modalTenantArrears]
   );
 
+  const renderLoadingSkeleton = () => (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={`stat-skeleton-${index}`} className="space-y-3 rounded-2xl border border-gray-200 p-4">
+            <div className="h-4 w-28 rounded bg-gray-200/90 animate-pulse" />
+            <div className="h-8 rounded bg-gray-200/90 animate-pulse" />
+            <div className="h-3 w-3/4 rounded bg-gray-200/90 animate-pulse" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3">
+        <div className="h-5 w-56 rounded bg-gray-200/90 animate-pulse" />
+        <div className="h-40 rounded-2xl bg-gray-200/90 animate-pulse" />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={`apt-skeleton-${index}`} className="h-28 rounded-2xl bg-gray-200/90 animate-pulse" />
+        ))}
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6 min-h-screen">
+        {renderLoadingSkeleton()}
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 min-h-screen">
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="space-y-1">
           <p className="text-sm text-gray-500">Projected earnings</p>

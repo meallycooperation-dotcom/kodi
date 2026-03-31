@@ -6,6 +6,7 @@ import useAuth from './useAuth';
 const useTenants = () => {
   const { user } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -14,12 +15,18 @@ const useTenants = () => {
       if (!user?.id) {
         if (mounted) {
           setTenants([]);
+          setIsLoading(false);
         }
         return;
+      }
+
+      if (mounted) {
+        setIsLoading(true);
       }
       const data = await fetchTenants(user.id);
       if (mounted) {
         setTenants(data);
+        setIsLoading(false);
       }
     };
 
@@ -33,15 +40,19 @@ const useTenants = () => {
   const refresh = async () => {
     if (!user?.id) {
       setTenants([]);
+      setIsLoading(false);
       return;
     }
+    setIsLoading(true);
     const data = await fetchTenants(user.id);
     setTenants(data);
+    setIsLoading(false);
   };
 
   return {
     tenants,
-    refresh
+    refresh,
+    isLoading
   };
 };
 

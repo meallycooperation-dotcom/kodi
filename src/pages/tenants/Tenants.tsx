@@ -7,6 +7,7 @@ import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import { insertRentSetting, insertTenant } from '../../services/tenantService';
 import { insertPayment, paymentExistsForMonth } from '../../services/paymentService';
+import PageLoader from '../../components/ui/PageLoader';
 
 const initialForm = {
   fullName: '',
@@ -21,7 +22,7 @@ const initialForm = {
 
 const Tenants = () => {
   const { user } = useAuth();
-  const { tenants, refresh } = useTenants();
+  const { tenants, refresh, isLoading } = useTenants();
   const { units } = useUnits('all', user?.id);
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState<string | null>(null);
@@ -180,6 +181,10 @@ const Tenants = () => {
       setLoading(false);
     }
   };
+
+  if (isLoading) {
+    return <PageLoader message="Loading tenants data..." />;
+  }
 
   return (
     <section className="space-y-5">

@@ -5,12 +5,13 @@ import useDashboardSummary from '../../hooks/useDashboardSummary';
 import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
 import { useCurrency } from '../../context/currency';
+import PageLoader from '../../components/ui/PageLoader';
 
 const RentArrears = () => {
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const { units } = useUnits('all', user?.id);
-  const { arrears, totalDue, tenantBalances } = useArrears();
+  const { arrears, totalDue, tenantBalances, isLoading } = useArrears();
   const { summary } = useDashboardSummary();
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
 
@@ -36,6 +37,10 @@ const RentArrears = () => {
   );
 
   const totalArrearsValue = filteredTotalDue;
+
+  if (isLoading) {
+    return <PageLoader message="Loading arrears data..." />;
+  }
 
   return (
     <section className="space-y-4">
