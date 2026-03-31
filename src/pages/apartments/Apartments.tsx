@@ -632,28 +632,9 @@ export default function ApartmentManager() {
                     apartmentBlockId={modalBlockId}
                     initialTenantId={modalTenantOptions[0].id}
                     initialUnitId={modalUnitOptions[0].id}
-                    //clientInfo={modalClientInfo}
+                    clientInfo={modalClientInfo}
                   />
                 )}
-                <div className="space-y-2 text-sm text-left">
-                  <p className="text-base font-semibold">{houseModal.tenant.full_name}</p>
-                  {houseModal.tenant.phone_number && (
-                    <p>Phone: {houseModal.tenant.phone_number}</p>
-                  )}
-                  {houseModal.tenant.id_number && <p>ID: {houseModal.tenant.id_number}</p>}
-                  <p>
-                    Move-in:{' '}
-                    {houseModal.tenant.move_in_date
-                      ? new Date(houseModal.tenant.move_in_date).toLocaleDateString('en-KE')
-                      : '—'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Added on:{' '}
-                    {houseModal.tenant.created_at
-                      ? new Date(houseModal.tenant.created_at).toLocaleString()
-                      : '—'}
-                  </p>
-                </div>
               </div>
             ) : (
               <form onSubmit={handleTenantSubmit} className="space-y-3 text-sm">
