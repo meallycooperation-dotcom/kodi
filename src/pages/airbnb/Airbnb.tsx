@@ -16,7 +16,15 @@ import {
 import type { AirbnbListing, AirbnbStatus } from '../../types/airbnb';
 import type { AirbnbTenant, AirbnbTenantStatus } from '../../types/airbnbTenant';
 import Modal from '../../components/ui/Modal';
+import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
 import { useCurrency } from '../../context/currency';
+
+// Title map for plan names (shared with Properties page)
+const planTitleMapAirbnb: Record<'basic' | 'standard' | 'premium', string> = {
+  basic: 'Basic Plan',
+  standard: 'Standard Plan',
+  premium: 'Premium Plan'
+};
 
 const statusOptions: AirbnbStatus[] = ['available', 'occupied', 'maintenance'];
 const tenantStatusOptions: AirbnbTenantStatus[] = ['booked', 'checked_in', 'checked_out', 'cancelled'];
@@ -90,6 +98,9 @@ const Airbnb = () => {
   const [loading, setLoading] = useState(false);
   const [listings, setListings] = useState<AirbnbListing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
@@ -117,6 +128,7 @@ const Airbnb = () => {
     checkOutAt: ''
   });
   const [showForm, setShowForm] = useState(false);
+  const [limitPopupOpen, setLimitPopupOpen] = useState(false);
 
   const handleChange = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -162,6 +174,20 @@ const Airbnb = () => {
   useEffect(() => {
     loadListings();
   }, [loadListings]);
+
+  // Load subscription status for the current user to enforce per-plan limits
+  useEffect(() => {
+    if (!user?.id) {
+      setSubscription(null);
+      return;
+    }
+    setSubscriptionError(null);
+    setSubscriptionLoading(true);
+    fetchSubscriptionForUser(user.id)
+      .then((data) => setSubscription(data ?? null))
+      .catch(() => setSubscriptionError('Unable to load your subscription status.'))
+      .finally(() => setSubscriptionLoading(false));
+  }, [user?.id]);
 
   const loadListingTenants = useCallback(async (listingId?: string) => {
     if (!listingId) {
@@ -262,9 +288,32 @@ const Airbnb = () => {
   }, [listingTenants, isBookingActive]);
 
   const totalListings = listings.length;
+  const planLimitReachedAirbnbs = Boolean(
+    subscription && subscription.max_airbnbs > 0 && listings.length >= subscription.max_airbnbs
+  );
   const totalRooms = useMemo(
     () => listings.reduce((sum, listing) => sum + parseRoomNumbersValue(listing.roomNumbers).length, 0),
     [listings]
+  );
+
+  // Plan & remaining listings panel for better UX
+  // Renders a small panel showing current plan and remaining Airbnb listings for the user
+  const planPanel = (
+    <Card>
+      {subscriptionLoading ? (
+        <p className="text-sm text-gray-600">Loading plan details…</p>
+      ) : subscription ? (
+        <p className="text-sm text-gray-600">
+          Current plan: <strong>{planTitleMapAirbnb[subscription.plan_name]}</strong> &ndash; {listings.length}/
+          {subscription.max_airbnbs} listings used
+          {subscription.max_airbnbs - listings.length > 0 ? (
+            <span> &ndash; {subscription.max_airbnbs - listings.length} remaining</span>
+          ) : (
+            <span> &ndash; Limit reached</span>
+          )}
+        </p>
+      ) : null}
+    </Card>
   );
 
   const aggregatedBookedRoomKeys = useMemo(() => {
@@ -406,6 +455,19 @@ const Airbnb = () => {
       return;
     }
 
+    // Ensure user has a subscription before allowing creation
+    if (!subscription) {
+      setStatusMessage('Please pick a plan before registering Airbnb listings.');
+      return;
+    }
+    // Enforce per-plan limit for Airbnb listings
+    if (planLimitReachedAirbnbs) {
+      setStatusMessage(
+        `Your ${planTitleMapAirbnb[subscription.plan_name]} allows ${subscription.max_airbnbs} listings. Upgrade to add more.`
+      );
+      return;
+    }
+
     const parsedPrice = Number(form.pricePerNight);
     if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
       setStatusMessage('Provide a valid nightly price.');
@@ -447,11 +509,38 @@ const Airbnb = () => {
           </Card>
         ))}
       </div>
+      {planPanel}
+
+      {limitPopupOpen && (
+        <Modal title="Airbnb listing limit reached">
+          <p className="text-sm text-gray-600">
+            You have reached the maximum Airbnb listings for your current plan.
+          </p>
+          {subscription && (
+            <p className="text-sm text-gray-600 mt-2">
+              Current plan: <strong>{planTitleMapAirbnb[subscription.plan_name]}</strong> • Limit: {subscription.max_airbnbs}
+            </p>
+          )}
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => setLimitPopupOpen(false)}>Close</Button>
+          </div>
+        </Modal>
+      )}
 
       <Card>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-lg">Add a new Airbnb listings</h2>
-          <Button variant="ghost" type="button" onClick={() => setShowForm((prev) => !prev)}>
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={() => {
+              if (planLimitReachedAirbnbs) {
+                setLimitPopupOpen(true);
+              } else {
+                setShowForm((prev) => !prev);
+              }
+            }}
+          >
             {showForm ? 'Hide form' : 'Add listing'}
           </Button>
         </div>
@@ -498,9 +587,12 @@ const Airbnb = () => {
               </select>
             </label>
             <div className="md:col-span-2 flex justify-end gap-2">
-              <Button type="submit" disabled={loading}>
+            <Button
+              type="submit"
+              disabled={loading || !!planLimitReachedAirbnbs || !subscription}
+            >
                 {loading ? 'Saving...' : 'Create listing'}
-              </Button>
+            </Button>
             </div>
             {statusMessage && (
               <p className="md:col-span-2 text-sm text-gray-600" role="status">

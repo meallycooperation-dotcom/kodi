@@ -57,9 +57,12 @@ export type SubscriptionRow = {
   last_payment_at: string | null;
 };
 
-export const fetchSubscriptionForUser = async (userId: string) => {
+// Return a SubscriptionRow or null for a given user
+export const fetchSubscriptionForUser = async (userId: string): Promise<SubscriptionRow | null> => {
   const { data, error } = await supabase
-    .from<SubscriptionRow>('subscriptions')
+    .from('subscriptions')
+    // Avoid strict generic typing issues across Supabase versions by using a plain select
+    // and casting the final result to the known SubscriptionRow type.
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
@@ -71,5 +74,6 @@ export const fetchSubscriptionForUser = async (userId: string) => {
     throw error;
   }
 
-  return data;
+  // Cast to the expected shape (SubscriptionRow | null) for type safety
+  return data as SubscriptionRow | null;
 };

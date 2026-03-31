@@ -59,6 +59,7 @@ const Properties = () => {
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [limitPopupOpen, setLimitPopupOpen] = useState(false);
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat('en-KE', {
@@ -356,14 +357,14 @@ const Properties = () => {
       return;
     }
     if (!subscription) {
-      setStatusMessage('Please pick a plan before registering units.');
+      // No subscription loaded yet or none exists; show popup to prompt plan selection
+      setLimitPopupOpen(true);
       return;
     }
 
     if (planLimitReached) {
-      setStatusMessage(
-        `Your ${planTitleMap[subscription.plan_name]} allows ${subscription.max_apartments} units. Upgrade to add more.`
-      );
+      // Show a popup instead of a silent/fatal error, to mirror Airbnb/APT UX
+      setLimitPopupOpen(true);
       return;
     }
 
@@ -452,6 +453,20 @@ const Properties = () => {
         </p>
       )}
       {subscriptionError && <p className="text-sm text-red-600">{subscriptionError}</p>}
+
+      {limitPopupOpen && (
+        <Modal title="Unit limit reached">
+          <p className="text-sm text-gray-600">You have reached the maximum units for your current plan.</p>
+          {subscription && (
+            <p className="text-sm text-gray-600 mt-2">
+              Current plan: <strong>{planTitleMap[subscription.plan_name]}</strong> &ndash; Limit: {subscription.max_apartments} units
+            </p>
+          )}
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => setLimitPopupOpen(false)}>Close</Button>
+          </div>
+        </Modal>
+      )}
 
       {showForm && (
         <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>

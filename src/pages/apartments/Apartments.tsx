@@ -1,4 +1,4 @@
-﻿import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -14,6 +14,14 @@ import {
   ApartmentArrearsViewRecord
 } from '../../services/paymentService';
 import { useCurrency } from '../../context/currency';
+import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
+// Removed duplicateTenant/Unit type imports to fix redeclaration
+// Plan title mapping for apartments (shared naming with other pages)
+const planTitleMapApartments: Record<'basic' | 'standard' | 'premium', string> = {
+  basic: 'Basic Plan',
+  standard: 'Standard Plan',
+  premium: 'Premium Plan'
+};
 import type { Tenant } from '../../types/tenant';
 import type { Unit } from '../../types/unit';
 
@@ -48,6 +56,8 @@ export default function ApartmentManager() {
   const [blockPrice, setBlockPrice] = useState('');
   const [houseCount, setHouseCount] = useState('');
   const [showApartmentForm, setShowApartmentForm] = useState(false);
+  // planMaxApartmentsReached is defined later after subscription is available to avoid TDZ
+  const [limitPopupOpen, setLimitPopupOpen] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [showHouseForm, setShowHouseForm] = useState(false);
   const [houseModal, setHouseModal] = useState<{
@@ -139,9 +149,38 @@ export default function ApartmentManager() {
     }
   }, [userId]);
 
+  // planPanel and limit logic will be defined after subscription is loaded to avoid TDZ
+
   useEffect(() => {
     loadApartmentViews();
   }, [loadApartmentViews]);
+
+  // Render plan panel helper (deferred until subscription is initialized)
+  const renderPlanPanel = () => {
+    if (subscriptionLoading) {
+      return (
+        <Card>
+          <p className="text-sm text-gray-600">Loading plan details…</p>
+        </Card>
+      );
+    }
+    if (!subscription) {
+      return null;
+    }
+    return (
+      <Card>
+        <p className="text-sm text-gray-600">
+          Current plan: <strong>{planTitleMapApartments[subscription.plan_name]}</strong> &ndash; {apartments.length}/
+          {subscription.max_apartments} apartments used
+          {subscription.max_apartments - apartments.length > 0 ? (
+            <span> &ndash; {subscription.max_apartments - apartments.length} remaining</span>
+          ) : (
+            <span> &ndash; Limit reached</span>
+          )}
+        </p>
+      </Card>
+    );
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -162,9 +201,38 @@ export default function ApartmentManager() {
     }
   }, [userId]);
 
+  // Load subscription status for the current user to enforce per-plan limits on apartments
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setSubscription(null);
+      return;
+    }
+    setSubscriptionError(null);
+    setSubscriptionLoading(true);
+    fetchSubscriptionForUser(userId)
+      .then((data) => setSubscription(data ?? null))
+      .catch(() => setSubscriptionError('Unable to load your subscription status.'))
+      .finally(() => setSubscriptionLoading(false));
+  }, [userId]);
+
+  // Plan panel helpers (declared after subscription is in scope to avoid TDZ)
+  const planMaxApartmentsReached = Boolean(
+    subscription && subscription.max_apartments > 0 && apartments.length >= subscription.max_apartments
+  );
+  // planPanel removed in favor of renderPlanPanel function
+
   const createApartment = async (e: FormEvent) => {
     e.preventDefault();
     if (!userId) {
+      return;
+    }
+    // Require a subscription to create apartments
+    if (!subscription) {
+      setLimitPopupOpen(true);
       return;
     }
 
@@ -429,6 +497,7 @@ export default function ApartmentManager() {
         <div className="h-5 w-56 rounded bg-gray-200/90 animate-pulse" />
         <div className="h-40 rounded-2xl bg-gray-200/90 animate-pulse" />
       </div>
+        {renderPlanPanel()}
       <div className="grid grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, index) => (
           <div key={`apt-skeleton-${index}`} className="h-28 rounded-2xl bg-gray-200/90 animate-pulse" />
@@ -473,18 +542,25 @@ export default function ApartmentManager() {
           <p className="text-xs text-gray-500">{houseSummary.totalHouses} total units</p>
         </Card>
       </div>
+      {renderPlanPanel()}
       <Card>
         <div className="flex justify-between items-center mb-2">
           <p className="text-sm text-gray-600">Create a new apartment</p>
           <Button
             type="button"
-            onClick={() => setShowApartmentForm((prev) => !prev)}
+            onClick={() => {
+              if (planMaxApartmentsReached) {
+                setLimitPopupOpen(true);
+              } else {
+                setShowApartmentForm((prev) => !prev);
+              }
+            }}
             className="px-3 py-2 text-sm"
           >
             {showApartmentForm ? 'Hide form' : 'Add apartment'}
           </Button>
         </div>
-        {showApartmentForm && (
+      {showApartmentForm && (
           <form onSubmit={createApartment} className="grid gap-2 md:grid-cols-[2fr,2fr,1fr]">
             <Input
               label="Apartment"
@@ -506,6 +582,23 @@ export default function ApartmentManager() {
           </form>
         )}
       </Card>
+      {renderPlanPanel()}
+
+      {limitPopupOpen && (
+        <Modal title="Apartment listing limit reached">
+          <p className="text-sm text-gray-600">
+            You have reached the maximum apartment listings for your current plan.
+          </p>
+          {subscription && (
+            <p className="text-sm text-gray-600 mt-2">
+              Current plan: <strong>{planTitleMapApartments[subscription.plan_name]}</strong> • Limit: {subscription.max_apartments}
+            </p>
+          )}
+          <div className="mt-4 flex justify-end">
+            <Button onClick={() => setLimitPopupOpen(false)}>Close</Button>
+          </div>
+        </Modal>
+      )}
 
       <div className="grid grid-cols-3 gap-4">
         {apartments.map((apt) => (
@@ -531,13 +624,13 @@ export default function ApartmentManager() {
         <Card>
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-lg font-bold">Blocks - {selectedApartment.name}</h2>
-            <Button
-              type="button"
-              onClick={() => setShowBlockForm((prev) => !prev)}
-              className="px-3 py-2 text-sm"
-            >
-              {showBlockForm ? 'Hide block form' : 'Add block'}
-            </Button>
+          <Button
+            type="button"
+            onClick={() => setShowBlockForm((prev) => !prev)}
+            className="px-3 py-2 text-sm"
+          >
+            {showBlockForm ? 'Hide block form' : 'Add block'}
+          </Button>
           </div>
 
           {showBlockForm && (
