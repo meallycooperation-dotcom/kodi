@@ -17,12 +17,15 @@ import useUnits from '../../hooks/useUnits';
 import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
 import { useCurrency } from '../../context/currency';
 import { fetchAirbnbListingsByCreator } from '../../services/airbnbService';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
 import {
   fetchApartmentPaidView,
   type ApartmentPaidViewRecord
 } from '../../services/paymentService';
 import type { AirbnbTenant } from '../../types/airbnbTenant';
+import { fetchSubscriptionForUser, fetchPlanPrice, type SubscriptionRow } from '../../services/subscriptionService';
 import type { Tenant } from '../../types/tenant';
 
 const isUnitTenant = (tenant: Tenant | AirbnbTenant): tenant is Tenant =>
@@ -42,6 +45,24 @@ const Dashboard = () => {
   const { totalTenants: apartmentTenantTotal, loading: apartmentTenantLoading } = useApartmentTenantTracker();
   const [apartmentPaidRecords, setApartmentPaidRecords] = useState<ApartmentPaidViewRecord[]>([]);
   const [apartmentPaidLoading, setApartmentPaidLoading] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [expiryModalOpen, setExpiryModalOpen] = useState(false);
+  const [prevSubscriptionStatus, setPrevSubscriptionStatus] = useState<string | null>(null);
+  const [planPrices, setPlanPrices] = useState<Record<string, number>>({});
+  const planTitles: Record<'basic'|'standard'|'premium', string> = {
+    basic: 'Basic Plan',
+    standard: 'Standard Plan',
+    premium: 'Premium Plan'
+  };
+  // Pricing: dynamic price from Plans catalog with a safe static fallback
+  const staticPlanPrices: Record<'basic'|'standard'|'premium', number> = {
+    basic: 1499,
+    standard: 2999,
+    premium: 4499
+  };
+  // planPrices are loaded dynamically from fetchPlanPrice and stored in state planPrices
 
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all' | 'airbnb'>('all');
   const [airbnbTenants, setAirbnbTenants] = useState<AirbnbTenant[]>([]);
@@ -69,6 +90,61 @@ const Dashboard = () => {
   useEffect(() => {
     loadAirbnbData();
   }, [loadAirbnbData]);
+
+  // Poll for subscription status changes to trigger expiry modal
+  useEffect(() => {
+    if (!user?.id) return;
+    let mounted = true;
+    const fetchInitial = async () => {
+      try {
+        const sub = await fetchSubscriptionForUser(user.id);
+        if (mounted) {
+          setSubscription(sub ?? null);
+          setPrevSubscriptionStatus(sub?.status ?? null);
+          if (sub?.status === 'expired') {
+            setExpiryModalOpen(true);
+          }
+          // Fetch price for the current plan; fallback to static price if needed
+          if (sub?.plan_name) {
+            try {
+              const price = await fetchPlanPrice(sub.plan_name);
+              setPlanPrices((p) => ({ ...p, [sub.plan_name!]: price }));
+            } catch {
+              setPlanPrices((p) => ({ ...p, [sub.plan_name!]: staticPlanPrices[sub.plan_name!] }));
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchInitial();
+
+    const interval = setInterval(async () => {
+      try {
+        const sub = await fetchSubscriptionForUser(user.id);
+        if (!mounted) return;
+        if (sub) {
+          const currentStatus = sub.status ?? '';
+          if (prevSubscriptionStatus && prevSubscriptionStatus !== currentStatus && currentStatus === 'expired') {
+            setExpiryModalOpen(true);
+          }
+          setPrevSubscriptionStatus(currentStatus);
+          setSubscription(sub);
+        } else {
+          setSubscription(null);
+          setPrevSubscriptionStatus(null);
+        }
+      } catch {
+        // ignore
+      }
+    }, 60000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [user?.id, prevSubscriptionStatus]);
 
   useEffect(() => {
     let mounted = true;
@@ -102,6 +178,9 @@ const Dashboard = () => {
       mounted = false;
     };
   }, [user?.id]);
+
+  // Access control: handle expired subscription via UI modal only (no automatic redirect)
+  // Previously redirected to payments; now we rely on the modal and existing flows.
 
   const filteredTenants = useMemo(() => {
     if (selectedUnitId === 'all') {
@@ -303,6 +382,30 @@ const Dashboard = () => {
           </div>
         </Card>
       </div>
+
+      {expiryModalOpen && (
+        <Modal title="Subscription expired">
+          <p className="text-sm text-gray-600">Your subscription has expired. Please renew to continue.</p>
+          <div className="mt-2 text-sm text-gray-600">
+            {subscription ? (
+              <>
+                Current plan: <strong>{planTitles[subscription.plan_name as keyof typeof planTitles]}</strong>
+                {subscription.ends_at ? <> • Ends: {new Date(subscription.ends_at).toLocaleDateString()}</> : null}
+                {typeof planPrices[subscription.plan_name as keyof typeof planPrices] === 'number' ? (
+                  <> • Price: {formatCurrency(planPrices[subscription.plan_name as keyof typeof planPrices]!)} / month</>
+                ) : (
+                  <> • Price: -</>
+                )}
+              </>
+            ) : (
+              <>Loading subscription details…</>
+            )}
+          </div>
+          <div className="mt-4">
+            <Button disabled>Proceed to payment</Button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 };

@@ -77,3 +77,20 @@ export const fetchSubscriptionForUser = async (userId: string): Promise<Subscrip
   // Cast to the expected shape (SubscriptionRow | null) for type safety
   return data as SubscriptionRow | null;
 };
+
+// Fetch the price for a given plan from the plans catalog (if available)
+export const fetchPlanPrice = async (planName: 'basic' | 'standard' | 'premium'): Promise<number> => {
+  const { data, error } = await supabase
+    .from('plans')
+    .select('price')
+    .eq('name', planName)
+    .maybeSingle();
+
+  if (error) {
+    console.error('fetchPlanPrice', error);
+    throw error;
+  }
+
+  const price = (data as any)?.price;
+  return typeof price === 'number' ? price : 0;
+};
