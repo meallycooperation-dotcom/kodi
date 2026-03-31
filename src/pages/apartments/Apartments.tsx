@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import PaymentForm from '../../components/rent/PaymentForm';
 import useAuth from '../../hooks/useAuth';
+import useArrears from '../../hooks/useArrears';
 import { supabase } from '../../lib/supabaseClient';
 import {
   fetchApartmentArrearsView,
@@ -20,6 +21,7 @@ export default function ApartmentManager() {
   const { user } = useAuth();
   const userId = user?.id;
   const { formatCurrency } = useCurrency();
+  const { arrears } = useArrears();
 
   const formatBlockPrice = (value: string | number | null | undefined) => {
     if (value === null || value === undefined) {
@@ -393,6 +395,18 @@ export default function ApartmentManager() {
     };
   }, [houseModal, selectedBlock?.block_name]);
 
+  const modalTenantArrears = useMemo(() => {
+    if (!houseModal?.tenant?.id) {
+      return [];
+    }
+    return arrears.filter((entry) => entry.tenantId === houseModal.tenant.id);
+  }, [arrears, houseModal?.tenant?.id]);
+
+  const modalTenantArrearsTotal = useMemo(
+    () => modalTenantArrears.reduce((sum, entry) => sum + entry.amountDue, 0),
+    [modalTenantArrears]
+  );
+
   return (
     <div className="p-6 space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
@@ -635,6 +649,26 @@ export default function ApartmentManager() {
                     clientInfo={modalClientInfo}
                   />
                 )}
+                <div className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-700">
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="font-semibold text-gray-900">Tenants arrears</p>
+                    <span className="text-sm text-gray-500">
+                      {formatCurrency(modalTenantArrearsTotal)}
+                    </span>
+                  </div>
+                  {modalTenantArrears.length > 0 ? (
+                    <ul className="space-y-2 text-sm text-gray-600">
+                      {modalTenantArrears.map((entry) => (
+                        <li key={entry.id} className="flex justify-between">
+                          <span>{entry.month}</span>
+                          <span>{formatCurrency(entry.amountDue)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-500">No outstanding months.</p>
+                  )}
+                </div>
               </div>
             ) : (
               <form onSubmit={handleTenantSubmit} className="space-y-3 text-sm">
