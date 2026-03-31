@@ -7,6 +7,7 @@ import { insertHouse } from '../../services/houseService';
 import { insertTenant, insertRentSetting } from '../../services/tenantService';
 import { insertPayment, paymentExistsForMonth } from '../../services/paymentService';
 import useAuth from '../../hooks/useAuth';
+import useArrears from '../../hooks/useArrears';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import Modal from '../../components/ui/Modal';
@@ -36,6 +37,7 @@ const Properties = () => {
   const { user } = useAuth();
   const { tenants, refresh: refreshTenants } = useTenants();
   const { units, refresh } = useUnits('all', user?.id);
+  const { arrears } = useArrears();
   const [form, setForm] = useState(initialState);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -210,6 +212,18 @@ const Properties = () => {
   };
 
   const closeTenantModal = () => setTenantModal(null);
+
+  const modalTenantArrears = useMemo(() => {
+    if (!tenantModal?.id) {
+      return [];
+    }
+    return arrears.filter((entry) => entry.tenantId === tenantModal.id);
+  }, [arrears, tenantModal?.id]);
+
+  const modalTenantArrearsTotal = useMemo(
+    () => modalTenantArrears.reduce((sum, entry) => sum + entry.amountDue, 0),
+    [modalTenantArrears]
+  );
 
   const handleTenantFormChange = (field: keyof typeof tenantFormInitial, value: string) => {
     setTenantFormData((prev) => ({ ...prev, [field]: value }));
@@ -511,6 +525,24 @@ const Properties = () => {
                       }}
                     />
                   )}
+                  <div className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-700">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="font-semibold text-gray-900">Tenant arrears</p>
+                      <span className="text-sm text-gray-500">{formatCurrency(modalTenantArrearsTotal)}</span>
+                    </div>
+                    {modalTenantArrears.length > 0 ? (
+                      <ul className="space-y-2 text-sm text-gray-600">
+                        {modalTenantArrears.map((entry) => (
+                          <li key={entry.id} className="flex justify-between">
+                            <span>{entry.month}</span>
+                            <span>{formatCurrency(entry.amountDue)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-gray-500">No outstanding months.</p>
+                    )}
+                  </div>
                   <div className="mt-4 flex justify-end">
                     <Button variant="ghost" type="button" onClick={closeTenantModal}>
                       Close
