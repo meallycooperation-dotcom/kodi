@@ -121,7 +121,7 @@ const Settings = () => {
         <div className="page-header">
           <h1>Settings</h1>
         </div>
-        <p>Loading user profile…</p>
+        <p>Loading user profile..</p>
       </section>
     );
   }
@@ -204,7 +204,7 @@ const Settings = () => {
             )}
 
             {subscriptionLoading ? (
-              <p className="text-sm text-gray-500">Loading subscription…</p>
+              <p className="text-sm text-gray-500">Loading subscription..</p>
             ) : subscription ? (
               <>
                 <div className="grid gap-3 text-sm text-gray-500">
@@ -231,7 +231,7 @@ const Settings = () => {
                     <p>
                       {subscription.last_payment_at
                         ? subscriptionDateFormatter.format(new Date(subscription.last_payment_at))
-                        : '—'}
+                        : '...'}
                     </p>
                   </div>
                 </div>
@@ -274,7 +274,7 @@ const Settings = () => {
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                       Payment method
                     </p>
-                    <p>{subscription.payment_method ?? '—'}</p>
+                    <p>{subscription.payment_method ?? 'ï¿½'}</p>
                   </div>
                 </div>
               </>

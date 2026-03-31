@@ -71,11 +71,14 @@ const Dashboard = () => {
     premium: 4499
   };
 
+  // Base URL for API requests (production should set VITE_API_BASE_URL)
+  const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:5000';
+
   const handleInitializePayment = async (plan: 'basic'|'standard'|'premium') => {
     const amount = amountMap[plan];
     console.log({ email: user?.email, amount, user_id: user?.id, plan });
     try {
-      const res = await fetch('http://localhost:5000/api/payments/initialize', {
+      const res = await fetch(`${API_BASE}/api/payments/initialize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
