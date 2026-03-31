@@ -3,6 +3,7 @@ import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import PaymentForm from '../../components/rent/PaymentForm';
 import useAuth from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -12,6 +13,8 @@ import {
   ApartmentArrearsViewRecord
 } from '../../services/paymentService';
 import { useCurrency } from '../../context/currency';
+import type { Tenant } from '../../types/tenant';
+import type { Unit } from '../../types/unit';
 
 export default function ApartmentManager() {
   const { user } = useAuth();
@@ -332,6 +335,64 @@ export default function ApartmentManager() {
     [arrearsViewRecords]
   );
 
+  const modalTenantOptions = useMemo<Tenant[] | undefined>(() => {
+    if (!houseModal?.tenant || !houseModal.house) {
+      return undefined;
+    }
+    const tenant = houseModal.tenant;
+    return [
+      {
+        id: tenant.id,
+        userId: userId ?? null,
+        unitId: houseModal.house.id,
+        houseNumber: houseModal.house.house_number ?? undefined,
+        fullName: tenant.full_name ?? '',
+        phone: tenant.phone_number ?? undefined,
+        email: undefined,
+        moveInDate: tenant.move_in_date ?? undefined,
+        status: 'active' as const,
+        createdAt: tenant.created_at ?? new Date().toISOString(),
+        houseId: houseModal.house.id,
+        houseBlockId: houseModal.house.block_id ?? undefined
+      }
+    ];
+  }, [houseModal, userId]);
+
+  const modalUnitOptions = useMemo<Unit[] | undefined>(() => {
+    if (!houseModal?.house) {
+      return undefined;
+    }
+    const house = houseModal.house;
+    const block = blocks.find((blockData) => blockData.id === house.block_id);
+    const unitStatus: Unit['status'] = house.status === 'occupied' ? 'occupied' : 'vacant';
+    return [
+      {
+        id: house.id,
+        propertyId: selectedApartment?.id ?? null,
+        unitNumber: house.house_number ?? house.id,
+        rentAmount: Number(block?.price ?? 0),
+        status: unitStatus,
+        createdAt: house.created_at ?? new Date().toISOString(),
+        userId: userId ?? undefined
+      }
+    ];
+  }, [blocks, houseModal, selectedApartment?.id, userId]);
+
+  const modalBlockId = houseModal?.house?.block_id ?? selectedBlock?.id ?? undefined;
+
+  const modalClientInfo = useMemo(() => {
+    if (!houseModal?.tenant || !houseModal?.house) {
+      return undefined;
+    }
+    const tenant = houseModal.tenant;
+    return {
+      fullName: tenant.full_name ?? '—',
+      phone: tenant.phone_number ?? undefined,
+      houseNumber: houseModal.house.house_number ?? undefined,
+      unitNumber: selectedBlock?.block_name ?? undefined
+    };
+  }, [houseModal, selectedBlock?.block_name]);
+
   return (
     <div className="p-6 space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
@@ -562,24 +623,37 @@ export default function ApartmentManager() {
             {tenantLoading ? (
               <p className="text-sm text-gray-600">Loading tenant information…</p>
             ) : houseModal.tenant ? (
-              <div className="space-y-2 text-sm text-left">
-                <p className="text-base font-semibold">{houseModal.tenant.full_name}</p>
-                {houseModal.tenant.phone_number && (
-                  <p>Phone: {houseModal.tenant.phone_number}</p>
+              <div className="space-y-4">
+                {selectedApartment?.id && modalTenantOptions?.length && modalUnitOptions?.length && (
+                  <PaymentForm
+                    tenants={modalTenantOptions}
+                    units={modalUnitOptions}
+                    apartmentId={selectedApartment.id}
+                    apartmentBlockId={modalBlockId}
+                    initialTenantId={modalTenantOptions[0].id}
+                    initialUnitId={modalUnitOptions[0].id}
+                    //clientInfo={modalClientInfo}
+                  />
                 )}
-                {houseModal.tenant.id_number && <p>ID: {houseModal.tenant.id_number}</p>}
-                <p>
-                  Move-in:{' '}
-                  {houseModal.tenant.move_in_date
-                    ? new Date(houseModal.tenant.move_in_date).toLocaleDateString('en-KE')
-                    : '—'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Added on:{' '}
-                  {houseModal.tenant.created_at
-                    ? new Date(houseModal.tenant.created_at).toLocaleString()
-                    : '—'}
-                </p>
+                <div className="space-y-2 text-sm text-left">
+                  <p className="text-base font-semibold">{houseModal.tenant.full_name}</p>
+                  {houseModal.tenant.phone_number && (
+                    <p>Phone: {houseModal.tenant.phone_number}</p>
+                  )}
+                  {houseModal.tenant.id_number && <p>ID: {houseModal.tenant.id_number}</p>}
+                  <p>
+                    Move-in:{' '}
+                    {houseModal.tenant.move_in_date
+                      ? new Date(houseModal.tenant.move_in_date).toLocaleDateString('en-KE')
+                      : '—'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Added on:{' '}
+                    {houseModal.tenant.created_at
+                      ? new Date(houseModal.tenant.created_at).toLocaleString()
+                      : '—'}
+                  </p>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleTenantSubmit} className="space-y-3 text-sm">

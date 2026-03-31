@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { Arrear, TenantArrearBalance } from '../types/arrears';
 import { fetchRentArrearsView } from '../services/viewService';
+import {
+  fetchApartmentArrearsView,
+  fetchApartmentPaidView,
+  type ApartmentArrearsViewRecord,
+  type ApartmentPaidViewRecord
+} from '../services/paymentService';
 import { fetchTenants } from '../services/tenantService';
 import useAuth from './useAuth';
 
@@ -20,10 +26,13 @@ const useArrears = () => {
 
     (async () => {
       try {
-        const [arrearsRecords, tenantRecords] = await Promise.all([
-          fetchRentArrearsView(user.id),
-          fetchTenants(user.id)
-        ]);
+        const [arrearsRecords, tenantRecords, apartmentArrearsRecords, apartmentPaidRecords] =
+          await Promise.all([
+            fetchRentArrearsView(user.id),
+            fetchTenants(user.id),
+            fetchApartmentArrearsView(user.id),
+            fetchApartmentPaidView(user.id)
+          ]);
 
         const uniqueArrearsRecords = Array.from(
           new Map(
@@ -48,8 +57,47 @@ const useArrears = () => {
           createdAt: new Date().toISOString()
         }));
 
+        const apartmentPaidMap = new Map<string, ApartmentPaidViewRecord[]>();
+        apartmentPaidRecords.forEach((record) => {
+          if (!record.tenantId) {
+            return;
+          }
+          const values = apartmentPaidMap.get(record.tenantId) ?? [];
+          values.push(record);
+          apartmentPaidMap.set(record.tenantId, values);
+        });
+
+        const uniqueApartmentArrears = Array.from(
+          new Map<string, ApartmentArrearsViewRecord>(
+            apartmentArrearsRecords.map((record) => [
+              `${record.tenantId}-${record.currentMonth}`,
+              record
+            ])
+          ).values()
+        );
+
+        const apartmentMapped = uniqueApartmentArrears.map<Arrear>((record) => {
+          const apartmentPaid = apartmentPaidMap.get(record.tenantId);
+          const tenantName =
+            record.tenantName ??
+            apartmentPaid?.[0]?.tenantName ??
+            'Unknown tenant';
+          return {
+            id: `apt-${record.tenantId}-${record.currentMonth}`,
+            tenantId: record.tenantId,
+            unitId: record.apartmentName ?? undefined,
+            tenantName,
+            amountDue: Number(record.balance ?? 0),
+            month: record.currentMonth,
+            status: 'overdue',
+            createdAt: new Date().toISOString()
+          };
+        });
+
+        const combined = [...mapped, ...apartmentMapped];
+
         const balanceMap = new Map<string, TenantArrearBalance>();
-        mapped.forEach((entry) => {
+        combined.forEach((entry) => {
           const existing = balanceMap.get(entry.tenantId);
           const months = existing ? [...existing.months] : [];
           if (!months.includes(entry.month)) {
@@ -64,7 +112,7 @@ const useArrears = () => {
         });
         const balances = Array.from(balanceMap.values()).sort((a, b) => b.totalDue - a.totalDue);
 
-        if (mounted) setArrears(mapped);
+        if (mounted) setArrears(combined);
         if (mounted) setTenantBalances(balances);
       } catch (error) {
         console.error('useArrears error', error);

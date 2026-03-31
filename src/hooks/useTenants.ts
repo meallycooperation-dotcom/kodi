@@ -11,8 +11,16 @@ const useTenants = () => {
     let mounted = true;
 
     const loadTenants = async () => {
-      const data = await fetchTenants(user?.id);
-      if (mounted) setTenants(data);
+      if (!user?.id) {
+        if (mounted) {
+          setTenants([]);
+        }
+        return;
+      }
+      const data = await fetchTenants(user.id);
+      if (mounted) {
+        setTenants(data);
+      }
     };
 
     loadTenants();
@@ -23,7 +31,11 @@ const useTenants = () => {
   }, [user?.id]);
 
   const refresh = async () => {
-    const data = await fetchTenants(user?.id);
+    if (!user?.id) {
+      setTenants([]);
+      return;
+    }
+    const data = await fetchTenants(user.id);
     setTenants(data);
   };
 

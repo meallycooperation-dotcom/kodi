@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import PaymentForm from '../../components/rent/PaymentForm';
 import { insertUnit } from '../../services/unitService';
 import { insertHouse } from '../../services/houseService';
 import { insertTenant, insertRentSetting } from '../../services/tenantService';
@@ -494,26 +495,27 @@ const Properties = () => {
             </div>
             {tenantModal && (
               <Modal title={`Tenant in house ${tenantModal.houseNumber ?? ''}`}>
-                <p className="text-sm text-gray-600">
-                  <strong>Name:</strong> {tenantModal.fullName}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Phone:</strong> {tenantModal.phone ?? 'Not provided'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Email:</strong> {tenantModal.email ?? 'Not provided'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Move-in date:</strong>{' '}
-                  {tenantModal.moveInDate ? dateFormatter.format(new Date(tenantModal.moveInDate)) : 'TBD'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <strong>Status:</strong> {tenantModal.status}
-                </p>
-                <div className="mt-4 flex justify-end">
-                  <Button variant="ghost" type="button" onClick={closeTenantModal}>
-                    Close
-                  </Button>
+                <div className="space-y-4">
+                  {selectedUnit && (
+                    <PaymentForm
+                      tenants={[tenantModal]}
+                      units={[selectedUnit]}
+                      initialTenantId={tenantModal.id}
+                      initialUnitId={selectedUnit.id}
+                      clientInfo={{
+                        fullName: tenantModal.fullName,
+                        phone: tenantModal.phone ?? undefined,
+                        email: tenantModal.email ?? undefined,
+                        houseNumber: tenantModal.houseNumber ?? undefined,
+                        unitNumber: selectedUnit.unitNumber
+                      }}
+                    />
+                  )}
+                  <div className="mt-4 flex justify-end">
+                    <Button variant="ghost" type="button" onClick={closeTenantModal}>
+                      Close
+                    </Button>
+                  </div>
                 </div>
               </Modal>
             )}

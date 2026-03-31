@@ -14,6 +14,15 @@ type PaymentFormProps = {
   units?: Unit[];
   apartmentId?: string;
   apartmentBlockId?: string;
+  initialTenantId?: string;
+  initialUnitId?: string;
+  clientInfo?: {
+    fullName: string;
+    phone?: string;
+    email?: string;
+    houseNumber?: string;
+    unitNumber?: string;
+  };
 };
 
 type PaymentTenant = Tenant & {
@@ -25,7 +34,10 @@ const PaymentForm = ({
   tenants: tenantOptions,
   units: unitOptions,
   apartmentId,
-  apartmentBlockId
+  apartmentBlockId,
+  initialTenantId,
+  initialUnitId,
+  clientInfo
 }: PaymentFormProps = {}) => {
   const { user } = useAuth();
   const { refresh } = usePayments();
@@ -43,6 +55,19 @@ const PaymentForm = ({
     paymentMethod: '',
     reference: ''
   });
+
+  useEffect(() => {
+    setForm((prev) => {
+      const nextForm = { ...prev };
+      if (initialTenantId !== undefined) {
+        nextForm.tenantId = initialTenantId;
+      }
+      if (initialUnitId !== undefined) {
+        nextForm.unitId = initialUnitId;
+      }
+      return nextForm;
+    });
+  }, [initialTenantId, initialUnitId]);
 
   useEffect(() => {
     if (unitOptions) {
@@ -158,6 +183,15 @@ const PaymentForm = ({
 
   return (
     <form className="payment-form space-y-3" onSubmit={handleSubmit}>
+      {clientInfo && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm space-y-0.5">
+          <p className="font-semibold text-gray-900">{clientInfo.fullName}</p>
+          {clientInfo.phone && <p>Phone: {clientInfo.phone}</p>}
+          {clientInfo.email && <p>Email: {clientInfo.email}</p>}
+          {clientInfo.unitNumber && <p>Unit: {clientInfo.unitNumber}</p>}
+          {clientInfo.houseNumber && <p>House: {clientInfo.houseNumber}</p>}
+        </div>
+      )}
       <label className="input-field">
         <span>Tenant</span>
         <select
