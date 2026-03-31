@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 type SplashProps = {
   onFinish: () => void;
@@ -13,30 +13,37 @@ const images = [
 const Splash = ({ onFinish }: SplashProps) => {
   const [index, setIndex] = useState(0);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (index < images.length - 1) {
-        setIndex((prev) => prev + 1);
-      } else {
-        localStorage.setItem('hasSeenSplash', 'true');
-        onFinish();
-      }
-    }, 1200);
-
-    return () => clearTimeout(timer);
-  }, [index, onFinish]);
+  const handleNext = () => {
+    if (index < images.length - 1) {
+      setIndex((prev) => prev + 1);
+    } else {
+      localStorage.setItem('hasSeenSplash', 'true');
+      onFinish();
+    }
+  };
 
   return (
-    <div className="h-screen w-screen bg-black flex items-center justify-center overflow-hidden">
-      <img
-        src={images[index]}
-        alt={`Splash ${index + 1}`}
-        className="max-h-full max-w-full object-contain"
-        style={{
-          transition: 'opacity 0.5s ease',
-          opacity: 1
-        }}
-      />
+    <div className="relative h-screen w-screen bg-black flex flex-col items-center justify-center overflow-hidden">
+      <div className="h-full w-full">
+        <img
+          src={images[index]}
+          alt={`Splash ${index + 1}`}
+          className="h-full w-full object-cover"
+          style={{
+            transition: 'opacity 0.5s ease',
+            opacity: 1
+          }}
+        />
+      </div>
+      <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+        <button
+          type="button"
+          onClick={handleNext}
+          className="rounded-full bg-white/90 px-6 py-2 text-sm font-semibold uppercase tracking-wide text-black transition hover:bg-white"
+        >
+          {index < images.length - 1 ? 'Next' : 'Get started'}
+        </button>
+      </div>
     </div>
   );
 };
