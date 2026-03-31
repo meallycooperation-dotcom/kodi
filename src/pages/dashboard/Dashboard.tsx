@@ -51,6 +51,8 @@ const Dashboard = () => {
   const [expiryModalOpen, setExpiryModalOpen] = useState(false);
   const [prevSubscriptionStatus, setPrevSubscriptionStatus] = useState<string | null>(null);
   const [planPrices, setPlanPrices] = useState<Record<string, number>>({});
+  const [initializingPayment, setInitializingPayment] = useState(false);
+  const [initStatus, setInitStatus] = useState<string | null>(null);
   const planTitles: Record<'basic'|'standard'|'premium', string> = {
     basic: 'Basic Plan',
     standard: 'Standard Plan',
@@ -63,6 +65,33 @@ const Dashboard = () => {
     premium: 4499
   };
   // planPrices are loaded dynamically from fetchPlanPrice and stored in state planPrices
+  const amountMap: Record<'basic'|'standard'|'premium', number> = {
+    basic: 1499,
+    standard: 2999,
+    premium: 4499
+  };
+
+  const handleInitializePayment = async (plan: 'basic'|'standard'|'premium') => {
+    const amount = amountMap[plan];
+    console.log({ email: user?.email, amount, user_id: user?.id, plan });
+    try {
+      const res = await fetch('http://localhost:5000/api/payments/initialize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: user?.email, amount, user_id: user?.id, plan })
+      });
+      const data = await res.json();
+      console.log(data);
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
+    } catch (err) {
+      console.error('initialize payment error', err);
+    }
+  };
+  // Single handleInitializePayment(plan) remains (defined above) and used by onClick
 
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all' | 'airbnb'>('all');
   const [airbnbTenants, setAirbnbTenants] = useState<AirbnbTenant[]>([]);
@@ -104,8 +133,8 @@ const Dashboard = () => {
           if (sub?.status === 'expired') {
             setExpiryModalOpen(true);
           }
-          // Fetch price for the current plan; fallback to static price if needed
-          if (sub?.plan_name) {
+  // Fetch price for the current plan; fallback to static price if needed
+  if (sub?.plan_name) {
             try {
               const price = await fetchPlanPrice(sub.plan_name);
               setPlanPrices((p) => ({ ...p, [sub.plan_name!]: price }));
@@ -401,9 +430,11 @@ const Dashboard = () => {
               <>Loading subscription details…</>
             )}
           </div>
-          <div className="mt-4">
-            <Button disabled>Proceed to payment</Button>
-          </div>
+  <div className="mt-4">
+    <Button onClick={() => subscription?.plan_name ? handleInitializePayment(subscription.plan_name as 'basic'|'standard'|'premium') : null} disabled={initializingPayment}>
+      {initializingPayment ? 'Initializing…' : 'Proceed to payment'}
+    </Button>
+  </div>
         </Modal>
       )}
     </section>
