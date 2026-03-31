@@ -6,6 +6,7 @@ import { insertUnit } from '../../services/unitService';
 import { insertHouse } from '../../services/houseService';
 import { insertTenant, insertRentSetting } from '../../services/tenantService';
 import { insertPayment, paymentExistsForMonth } from '../../services/paymentService';
+import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
 import useAuth from '../../hooks/useAuth';
 import useArrears from '../../hooks/useArrears';
 import useTenants from '../../hooks/useTenants';
@@ -32,6 +33,12 @@ const tenantFormInitial = {
   defaultRent: ''
 };
 
+const planTitleMap: Record<'basic' | 'standard' | 'premium', string> = {
+  basic: 'Basic Plan',
+  standard: 'Standard Plan',
+  premium: 'Premium Plan'
+};
+
 const Properties = () => {
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
@@ -49,6 +56,9 @@ const Properties = () => {
   const [tenantFormOpen, setTenantFormOpen] = useState(false);
   const [tenantFormStatus, setTenantFormStatus] = useState<string | null>(null);
   const [tenantFormLoading, setTenantFormLoading] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat('en-KE', {
@@ -335,10 +345,25 @@ const Properties = () => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const planLimitReached = Boolean(
+    subscription && subscription.max_apartments > 0 && units.length >= subscription.max_apartments
+  );
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!user) {
       setStatusMessage('Sign in to create units.');
+      return;
+    }
+    if (!subscription) {
+      setStatusMessage('Please pick a plan before registering units.');
+      return;
+    }
+
+    if (planLimitReached) {
+      setStatusMessage(
+        `Your ${planTitleMap[subscription.plan_name]} allows ${subscription.max_apartments} units. Upgrade to add more.`
+      );
       return;
     }
 
@@ -376,6 +401,20 @@ const Properties = () => {
       setLoading(false);
     }
   };
+ 
+  useEffect(() => {
+    if (!user?.id) {
+      setSubscription(null);
+      return;
+    }
+
+    setSubscriptionError(null);
+    setSubscriptionLoading(true);
+    fetchSubscriptionForUser(user.id)
+      .then((data) => setSubscription(data ?? null))
+      .catch(() => setSubscriptionError('Unable to load your subscription status.'))
+      .finally(() => setSubscriptionLoading(false));
+  }, [user?.id]);
 
   useEffect(() => {
     if (!selectedUnitId && displayedUnits.length > 0) {
@@ -399,6 +438,20 @@ const Properties = () => {
           {showForm ? 'Hide Form' : 'Create Unit'}
         </Button>
       </div>
+
+      {subscriptionLoading ? (
+        <p className="text-sm text-gray-500">Checking your subscription…</p>
+      ) : subscription ? (
+        <p className="text-sm text-gray-500">
+          Active plan: <strong>{planTitleMap[subscription.plan_name]}</strong> &ndash;{' '}
+          {units.length}/{subscription.max_apartments} units registered.
+        </p>
+      ) : (
+        <p className="text-sm text-yellow-600">
+          No active plan found. Pick a plan to unlock unit creation.
+        </p>
+      )}
+      {subscriptionError && <p className="text-sm text-red-600">{subscriptionError}</p>}
 
       {showForm && (
         <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
@@ -430,7 +483,17 @@ const Properties = () => {
               <option value="maintenance">Maintenance</option>
             </select>
           </label>
-          <Button type="submit" disabled={loading} className="md:col-span-2">
+          {planLimitReached && (
+            <p className="text-sm text-yellow-600">
+              You have reached the {subscription ? planTitleMap[subscription.plan_name] : 'plan'} limit of{' '}
+              {subscription?.max_apartments} units.
+            </p>
+          )}
+          <Button
+            type="submit"
+            disabled={loading || planLimitReached || !subscription}
+            className="md:col-span-2"
+          >
             {loading ? 'Saving…' : 'Create unit'}
           </Button>
         </form>

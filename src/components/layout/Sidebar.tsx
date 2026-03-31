@@ -11,6 +11,7 @@ const sections = [
   { label: 'Analytics', to: '/analytics' },
   { label: 'Reminders', to: '/reminders' },
   { label: 'Notifications', to: '/notifications' },
+  { label: 'Plan', to: '/plan' },
   { label: 'Settings', to: '/settings' }
 ];
 
