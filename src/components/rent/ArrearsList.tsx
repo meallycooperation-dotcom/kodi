@@ -11,17 +11,33 @@ const ArrearsList = ({ arrears }: ArrearsListProps) => {
 
   return (
     <ul className="arrears-list space-y-4">
-      {arrears.map((item) => (
-        <li key={item.id} className="arrears-item">
-          <div>
-            <p>
-              {item.tenantName ?? 'Tenant'} ({item.tenantId}) - {item.month}
-            </p>
-            <small>Status: {item.status}</small>
-          </div>
-          <Badge status="warning">{formatCurrency(item.amountDue)}</Badge>
-        </li>
-      ))}
+      {arrears.map((item) => {
+        const isPaid = item.amountDue <= 0;
+        const monthsLabel = item.monthsStayed
+          ? `${item.monthsStayed} month${item.monthsStayed === 1 ? '' : 's'} of tenancy`
+          : 'Lifetime summary';
+        return (
+          <li key={item.id} className="arrears-item">
+            <div>
+              <p className="font-semibold">
+                {item.tenantName ?? 'Tenant'} ({item.tenantId})
+              </p>
+              <p className="text-sm text-gray-500">{monthsLabel}</p>
+              <p className="text-sm text-gray-500">
+                Total rent: {formatCurrency(item.totalExpectedRent)} · Paid: {formatCurrency(item.totalPaid)}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-base font-semibold text-gray-900">
+                {formatCurrency(item.amountDue)}
+              </span>
+              <Badge status={isPaid ? 'success' : 'warning'}>
+                {isPaid ? 'Paid' : `Owes ${formatCurrency(item.amountDue)}`}
+              </Badge>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 };

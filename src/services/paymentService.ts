@@ -234,6 +234,7 @@ export const fetchApartmentPaidView = async (userId?: string) => {
 };
 
 export type ApartmentArrearsViewRow = {
+  user_id: string;
   tenant_id: string;
   full_name: string;
   phone_number: string | null;
@@ -242,12 +243,14 @@ export type ApartmentArrearsViewRow = {
   rent_amount: number | null;
   block_name: string;
   apartment_name: string;
-  current_month: string;
+  months_stayed: number | null;
+  total_expected_rent: number | null;
   total_paid: number | null;
   balance: number | null;
 };
 
 export type ApartmentArrearsViewRecord = {
+  userId: string;
   tenantId: string;
   tenantName: string;
   phoneNumber?: string;
@@ -256,13 +259,19 @@ export type ApartmentArrearsViewRecord = {
   rentAmount: number;
   blockName: string;
   apartmentName: string;
-  currentMonth: string;
+  monthsStayed?: number;
+  totalExpectedRent: number;
   totalPaid: number;
   balance: number;
+  status: 'paid' | 'unpaid';
 };
 
 export const fetchApartmentArrearsView = async (userId?: string) => {
-  let query = supabase.from('apartment_arrears_view').select('*');
+  let query = supabase
+    .from('apartment_arrears_view')
+    .select(
+      'user_id, tenant_id, full_name, phone_number, house_id, house_number, rent_amount, block_name, apartment_name, months_stayed, total_expected_rent, total_paid, balance'
+    );
 
   if (userId) {
     query = query.eq('user_id', userId);
@@ -270,17 +279,23 @@ export const fetchApartmentArrearsView = async (userId?: string) => {
 
   const { data, error } = await query;
   handleError(error);
-  return (data ?? []).map<ApartmentArrearsViewRecord>((row) => ({
-    tenantId: row.tenant_id,
-    tenantName: row.full_name,
-    phoneNumber: row.phone_number ?? undefined,
-    houseId: row.house_id,
-    houseNumber: row.house_number,
-    rentAmount: Number(row.rent_amount ?? 0),
-    blockName: row.block_name,
-    apartmentName: row.apartment_name,
-    currentMonth: row.current_month,
-    totalPaid: Number(row.total_paid ?? 0),
-    balance: Number(row.balance ?? 0)
-  }));
+      return (data ?? []).map<ApartmentArrearsViewRecord>((row) => {
+        const balance = Number(row.balance ?? 0);
+        return {
+          userId: row.user_id,
+          tenantId: row.tenant_id,
+          tenantName: row.full_name,
+          phoneNumber: row.phone_number ?? undefined,
+          houseId: row.house_id,
+          houseNumber: row.house_number,
+          rentAmount: Number(row.rent_amount ?? 0),
+          blockName: row.block_name,
+          apartmentName: row.apartment_name,
+          monthsStayed: Number(row.months_stayed ?? 0) || undefined,
+          totalExpectedRent: Number(row.total_expected_rent ?? 0),
+          totalPaid: Number(row.total_paid ?? 0),
+          balance,
+          status: balance <= 0 ? 'paid' : 'unpaid'
+        };
+      });
 };

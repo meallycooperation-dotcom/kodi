@@ -4,14 +4,19 @@ export type Arrear = {
   unitId?: string;
   tenantName?: string;
   amountDue: number;
-  month: string;
-  status: 'unpaid' | 'partial' | 'overdue';
+  totalExpectedRent: number;
+  totalPaid: number;
+  monthsStayed?: number;
+  status: 'paid' | 'unpaid' | 'overdue';
   createdAt: string;
 };
 
 export type TenantArrearBalance = {
   tenantId: string;
   tenantName: string;
-  totalDue: number;
-  months: string[];
+  totalExpectedRent: number;
+  totalPaid: number;
+  arrears: number;
+  monthsStayed?: number;
+  status: Arrear['status'];
 };

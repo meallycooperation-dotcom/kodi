@@ -37,12 +37,21 @@ const Dashboard = () => {
   const { tenants } = useTenants();
   const { units } = useUnits('all', user?.id);
   const { payments, totalCollected, loading: paymentsLoading } = usePayments();
-  const { arrears, totalDue } = useArrears();
+  const { arrears, totalDue, totalExpectedRent, totalPaid } = useArrears();
   const { reminders } = useReminders();
   const { notifications } = useNotifications();
   const { summary, loading: summaryLoading } = useDashboardSummary();
   const { months } = useMonthlyRevenue();
   const { totalTenants: apartmentTenantTotal, loading: apartmentTenantLoading } = useApartmentTenantTracker();
+  const paymentDateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-KE', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      }),
+    []
+  );
   const [apartmentPaidRecords, setApartmentPaidRecords] = useState<ApartmentPaidViewRecord[]>([]);
   const [apartmentPaidLoading, setApartmentPaidLoading] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
@@ -373,6 +382,26 @@ const Dashboard = () => {
           </select>
         </label>
       </div>
+      <Card title="Financial snapshot" className="space-y-0">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <p className="text-sm text-gray-500">Total Rent Due</p>
+            <p className="text-2xl font-semibold">{formatCurrency(totalExpectedRent)}</p>
+            <p className="text-xs text-gray-400">All tenants, all time</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <p className="text-sm text-gray-500">Total Paid</p>
+            <p className="text-2xl font-semibold">{formatCurrency(totalPaid)}</p>
+            <p className="text-xs text-gray-400">Cumulative payments</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <p className="text-sm text-gray-500">Outstanding Balance</p>
+            <p className="text-2xl font-semibold">{formatCurrency(totalDue)}</p>
+            <p className="text-xs text-gray-400">Current arrears</p>
+          </div>
+        </div>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Calendar">
           <Calendar />

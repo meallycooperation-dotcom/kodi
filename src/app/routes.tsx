@@ -53,7 +53,8 @@ const routes: AppRoute[] = [
   { path: '/auth/forgot-password', element: <ForgotPassword /> },
   { path: '/auth/new-password', element: <NewPassword /> },
   { path: '/auth/confirm-email', element: <ConfirmEmailSent /> },
-  { path: '/signup', element: <Signup /> }
+  { path: '/signup', element: <Signup /> },
+  
 ];
 
 export default routes;

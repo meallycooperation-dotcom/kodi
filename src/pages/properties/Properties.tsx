@@ -5,7 +5,7 @@ import PaymentForm from '../../components/rent/PaymentForm';
 import { insertUnit } from '../../services/unitService';
 import { insertHouse } from '../../services/houseService';
 import { insertTenant, insertRentSetting } from '../../services/tenantService';
-import { insertPayment, paymentExistsForMonth } from '../../services/paymentService';
+import { insertPayment } from '../../services/paymentService';
 import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
 import useAuth from '../../hooks/useAuth';
 import useArrears from '../../hooks/useArrears';
@@ -307,21 +307,6 @@ const Properties = () => {
         status: 'active'
       });
 
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const paymentExists = await paymentExistsForMonth(createdTenant.id, currentMonth);
-      if (!paymentExists) {
-        const today = new Date().toISOString().split('T')[0];
-        await insertPayment({
-          tenantId: createdTenant.id,
-          unitId: createdTenant.unitId || '',
-          amountPaid: 0,
-          paymentDate: today,
-          monthPaidFor: currentMonth,
-          paymentMethod: 'system',
-          reference: 'Auto-generated due amount for new tenant'
-        });
-      }
-
       await insertRentSetting({
         userId: user.id,
         rentMode: tenantFormData.rentMode || 'monthly',
@@ -609,16 +594,31 @@ const Properties = () => {
                       <span className="text-sm text-gray-500">{formatCurrency(modalTenantArrearsTotal)}</span>
                     </div>
                     {modalTenantArrears.length > 0 ? (
-                      <ul className="space-y-2 text-sm text-gray-600">
+                      <div className="space-y-3 text-sm text-gray-600">
                         {modalTenantArrears.map((entry) => (
-                          <li key={entry.id} className="flex justify-between">
-                            <span>{entry.month}</span>
-                            <span>{formatCurrency(entry.amountDue)}</span>
-                          </li>
+                          <div key={entry.id} className="rounded border border-gray-100 px-3 py-2">
+                            <p className="font-semibold text-gray-900">
+                              {entry.tenantName ?? entry.tenantId}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {entry.monthsStayed
+                                ? `${entry.monthsStayed} month${entry.monthsStayed === 1 ? '' : 's'} of tenancy`
+                                : 'Lifetime summary'}
+                            </p>
+                            <p>
+                              Total rent: {formatCurrency(entry.totalExpectedRent)} · Paid: {formatCurrency(entry.totalPaid)}
+                            </p>
+                            <p className="text-xs font-semibold text-gray-700">
+                              {entry.status === 'paid'
+                                ? 'Status: Paid'
+                                : `Status: Owes ${formatCurrency(entry.amountDue)}`
+                              }
+                            </p>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     ) : (
-                      <p className="text-xs text-gray-500">No outstanding months.</p>
+                      <p className="text-xs text-gray-500">No outstanding balances.</p>
                     )}
                   </div>
                   <div className="mt-4 flex justify-end">

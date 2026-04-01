@@ -51,7 +51,6 @@ const PaymentForm = ({
     unitId: '',
     amountPaid: '',
     paymentDate: '',
-    monthPaidFor: '',
     paymentMethod: '',
     reference: ''
   });
@@ -128,12 +127,13 @@ const PaymentForm = ({
     setStatus(null);
 
     try {
+      const monthPaidFor = new Date().toISOString().slice(0, 7);
       const paymentPayload = {
         tenantId: form.tenantId,
         unitId: form.unitId,
         amountPaid: parseFloat(form.amountPaid) || 0,
         paymentDate: form.paymentDate,
-        monthPaidFor: form.monthPaidFor,
+        monthPaidFor,
         paymentMethod: form.paymentMethod || undefined,
         reference: form.reference || undefined
       };
@@ -168,7 +168,6 @@ const PaymentForm = ({
         unitId: '',
         amountPaid: '',
         paymentDate: '',
-        monthPaidFor: '',
         paymentMethod: '',
         reference: ''
       });
@@ -242,15 +241,6 @@ const PaymentForm = ({
         type="date"
         value={form.paymentDate}
         onChange={(event) => handleChange('paymentDate', event.target.value)}
-        required
-      />
-
-      <Input
-        label="Month Paid For"
-        name="monthPaidFor"
-        type="date"
-        value={form.monthPaidFor}
-        onChange={(event) => handleChange('monthPaidFor', event.target.value)}
         required
       />
 

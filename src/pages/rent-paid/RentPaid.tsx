@@ -6,6 +6,7 @@ import usePayments from '../../hooks/usePayments';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
+import useArrears from '../../hooks/useArrears';
 import { useCurrency } from '../../context/currency';
 import { supabase } from '../../lib/supabaseClient';
 import type { Tenant } from '../../types/tenant';
@@ -16,6 +17,7 @@ const RentPaid = () => {
   const { formatCurrency } = useCurrency();
   const { payments, totalCollected } = usePayments();
   const { user } = useAuth();
+  const { totalDue } = useArrears();
   const { units } = useUnits('all', user?.id);
   const { tenants } = useTenants();
   const { apartmentPayments, loading: apartmentPaymentsLoading } = useApartmentPayments();
@@ -298,62 +300,6 @@ const RentPaid = () => {
     [filteredPayments]
   );
 
-  const selectedMonth = useMemo(
-    () => filteredPayments[0]?.monthPaidFor ?? new Date().toISOString().slice(0, 7),
-    [filteredPayments]
-  );
-
-  const paymentSums = useMemo(() => {
-    const map = new Map<string, { amount: number; name?: string }>();
-    filteredPayments
-      .filter((payment) => payment.monthPaidFor === selectedMonth)
-      .forEach((payment) => {
-        const existing = map.get(payment.unitId) ?? { amount: 0, name: payment.tenantName };
-        map.set(payment.unitId, {
-          amount: existing.amount + payment.amountPaid,
-          name: existing.name ?? payment.tenantName
-        });
-      });
-    return map;
-  }, [filteredPayments, selectedMonth]);
-
-  const tenantsByUnit = useMemo(() => {
-    const map = new Map<string, string>();
-    filteredTenants.forEach((tenant) => {
-      if (tenant.unitId) {
-        map.set(tenant.unitId, tenant.fullName);
-      }
-    });
-    return map;
-  }, [filteredTenants]);
-
-  const outstanding = useMemo(() => {
-    const rows = filteredUnits
-      .map((unit) => {
-        const { amount = 0, name } = paymentSums.get(unit.id) ?? {};
-        const balance = Math.max(unit.rentAmount - amount, 0);
-        const displayName = tenantsByUnit.get(unit.id) ?? name ?? `Unit ${unit.unitNumber ?? unit.id}`;
-        return {
-          unit,
-          paid: amount,
-          balance,
-          displayName
-        };
-      })
-      .filter((row) => row.balance > 0)
-      .sort((a, b) => b.balance - a.balance);
-    const total = rows.reduce((sum, row) => sum + row.balance, 0);
-    return { rows, total };
-  }, [paymentSums, tenantsByUnit, filteredUnits]);
-
-  const formattedMonth = useMemo(() => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    if (!Number.isFinite(year) || !Number.isFinite(month)) {
-      return selectedMonth;
-    }
-    return new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-  }, [selectedMonth]);
-
   if (isLoading || apartmentPaymentsLoading) {
     return <PageLoader message="Loading rent payments..." />;
   }
@@ -396,7 +342,8 @@ const RentPaid = () => {
         </div>
         <div>
           <h1>Rent Paid</h1>
-          <p>Total collected this month: {formatCurrency(filteredTotalCollected)}</p>
+          <p>Total collected: {formatCurrency(filteredTotalCollected)}</p>
+          <p className="text-sm text-gray-500">Outstanding balance: {formatCurrency(totalDue)}</p>
         </div>
         <label className="input-field">
           <span>

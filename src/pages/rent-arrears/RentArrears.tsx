@@ -36,6 +36,16 @@ const RentArrears = () => {
     [filteredArrears]
   );
 
+  const filteredTotalExpected = useMemo(
+    () => filteredTenantBalances.reduce((sum, balance) => sum + balance.totalExpectedRent, 0),
+    [filteredTenantBalances]
+  );
+
+  const filteredTotalPaid = useMemo(
+    () => filteredTenantBalances.reduce((sum, balance) => sum + balance.totalPaid, 0),
+    [filteredTenantBalances]
+  );
+
   const totalArrearsValue = filteredTotalDue;
 
   if (isLoading) {
@@ -65,23 +75,58 @@ const RentArrears = () => {
           </select>
         </label>
       </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-sm text-gray-500">Total Rent Due</p>
+          <p className="text-2xl font-semibold">{formatCurrency(filteredTotalExpected)}</p>
+          <p className="text-xs text-gray-400">Includes all tenants in the current filter</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-sm text-gray-500">Total Paid</p>
+          <p className="text-2xl font-semibold">{formatCurrency(filteredTotalPaid)}</p>
+          <p className="text-xs text-gray-400">Cumulative payments recorded so far</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <p className="text-sm text-gray-500">Outstanding Balance</p>
+          <p className="text-2xl font-semibold">{formatCurrency(filteredTotalDue)}</p>
+          <p className="text-xs text-gray-400">Sum of tenant arrears</p>
+        </div>
+      </div>
+
       <div className="space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-lg font-semibold">Tenants with arrears</h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Tenant financial summary</h2>
+            <span className="text-sm text-gray-500">{filteredTenantBalances.length} tenant(s)</span>
+          </div>
           {filteredTenantBalances.length ? (
             <ul className="space-y-3">
               {filteredTenantBalances.map((balance) => (
                 <li
                   key={balance.tenantId}
-                  className="flex items-center justify-between rounded border border-dashed border-gray-200 p-3"
+                  className="flex items-center justify-between rounded-lg border border-dashed border-gray-200 bg-white p-4"
                 >
-                  <div className="space-y-1">
+                  <div>
                     <p className="font-semibold">{balance.tenantName}</p>
                     <p className="text-sm text-gray-500">
-                      {balance.months.join(', ')}
+                      {balance.monthsStayed
+                        ? `${balance.monthsStayed} month${balance.monthsStayed === 1 ? '' : 's'} of tenancy`
+                        : 'Lifetime summary'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Total Rent: {formatCurrency(balance.totalExpectedRent)} · Paid: {formatCurrency(balance.totalPaid)}
                     </p>
                   </div>
-                  <span className="text-lg font-semibold">{formatCurrency(balance.totalDue)}</span>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-gray-900">{formatCurrency(balance.arrears)}</p>
+                    <span
+                      className={`text-sm font-semibold ${
+                        balance.status === 'paid' ? 'text-green-600' : 'text-red-600'
+                      }`}
+                    >
+                      {balance.status === 'paid' ? 'Paid' : 'Unpaid'}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -89,7 +134,11 @@ const RentArrears = () => {
             <p className="text-sm text-gray-500">No tenants currently have outstanding balances.</p>
           )}
         </div>
-        <ArrearsList arrears={filteredArrears} />
+
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Arrears details</h2>
+          <ArrearsList arrears={filteredArrears} />
+        </div>
       </div>
     </section>
   );

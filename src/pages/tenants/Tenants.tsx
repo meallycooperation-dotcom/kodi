@@ -6,7 +6,7 @@ import useAuth from '../../hooks/useAuth';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import { insertRentSetting, insertTenant } from '../../services/tenantService';
-import { insertPayment, paymentExistsForMonth } from '../../services/paymentService';
+import { insertPayment } from '../../services/paymentService';
 import PageLoader from '../../components/ui/PageLoader';
 
 const initialForm = {
@@ -147,22 +147,6 @@ const Tenants = () => {
         moveInDate: form.moveInDate || undefined,
         status: 'active'
       });
-
-      // Ensure arrears are tracked for new tenant if no payment exists for current month
-      const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-      const paymentExists = await paymentExistsForMonth(createdTenant.id, currentMonth);
-      if (!paymentExists) {
-        const today = new Date().toISOString().split('T')[0];
-        await insertPayment({
-          tenantId: createdTenant.id,
-          unitId: createdTenant.unitId || '',
-          amountPaid: 0,
-          paymentDate: today,
-          monthPaidFor: currentMonth,
-          paymentMethod: 'system',
-          reference: 'Auto-generated due amount for new tenant'
-        });
-      }
 
       await insertRentSetting({
         userId: user.id,

@@ -528,7 +528,7 @@ export default function ApartmentManager() {
           <p className="text-sm text-gray-500">Arrears</p>
           <p className="text-2xl font-semibold">{formatCurrency(totalArrears)}</p>
           <p className="text-xs text-gray-500">
-            {arrearsViewRecords.length} tenant{arrearsViewRecords.length === 1 ? '' : 's'} missing this month
+            {arrearsViewRecords.length} tenant{arrearsViewRecords.length === 1 ? '' : 's'} with outstanding balances
           </p>
         </Card>
         <Card className="space-y-1">
@@ -788,16 +788,30 @@ export default function ApartmentManager() {
                     </span>
                   </div>
                   {modalTenantArrears.length > 0 ? (
-                    <ul className="space-y-2 text-sm text-gray-600">
+                    <div className="space-y-3 text-sm text-gray-600">
                       {modalTenantArrears.map((entry) => (
-                        <li key={entry.id} className="flex justify-between">
-                          <span>{entry.month}</span>
-                          <span>{formatCurrency(entry.amountDue)}</span>
-                        </li>
+                        <div key={entry.id} className="rounded border border-gray-100 px-3 py-2">
+                          <p className="font-semibold text-gray-900">
+                            {entry.tenantName ?? entry.tenantId}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {entry.monthsStayed
+                              ? `${entry.monthsStayed} month${entry.monthsStayed === 1 ? '' : 's'} of tenancy`
+                              : 'Lifetime summary'}
+                          </p>
+                          <p>
+                            Total rent: {formatCurrency(entry.totalExpectedRent)} · Paid: {formatCurrency(entry.totalPaid)}
+                          </p>
+                          <p className="text-xs font-semibold text-gray-700">
+                            {entry.status === 'paid'
+                              ? 'Status: Paid'
+                              : `Status: Owes ${formatCurrency(entry.amountDue)}`}
+                          </p>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   ) : (
-                    <p className="text-xs text-gray-500">No outstanding months.</p>
+                    <p className="text-xs text-gray-500">No outstanding balances.</p>
                   )}
                 </div>
               </div>
