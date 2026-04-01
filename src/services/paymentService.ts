@@ -266,36 +266,36 @@ export type ApartmentArrearsViewRecord = {
   status: 'paid' | 'unpaid';
 };
 
-export const fetchApartmentArrearsView = async (userId?: string) => {
+export const fetchApartmentArrearsView = async (tenantIds?: string[]) => {
   let query = supabase
     .from('apartment_arrears_view')
     .select(
       'user_id, tenant_id, full_name, phone_number, house_id, house_number, rent_amount, block_name, apartment_name, months_stayed, total_expected_rent, total_paid, balance'
     );
 
-  if (userId) {
-    query = query.eq('user_id', userId);
+  if (tenantIds && tenantIds.length > 0) {
+    query = query.in('tenant_id', tenantIds);
   }
 
   const { data, error } = await query;
   handleError(error);
-      return (data ?? []).map<ApartmentArrearsViewRecord>((row) => {
-        const balance = Number(row.balance ?? 0);
-        return {
-          userId: row.user_id,
-          tenantId: row.tenant_id,
-          tenantName: row.full_name,
-          phoneNumber: row.phone_number ?? undefined,
-          houseId: row.house_id,
-          houseNumber: row.house_number,
-          rentAmount: Number(row.rent_amount ?? 0),
-          blockName: row.block_name,
-          apartmentName: row.apartment_name,
-          monthsStayed: Number(row.months_stayed ?? 0) || undefined,
-          totalExpectedRent: Number(row.total_expected_rent ?? 0),
-          totalPaid: Number(row.total_paid ?? 0),
-          balance,
-          status: balance <= 0 ? 'paid' : 'unpaid'
-        };
-      });
+  return (data ?? []).map<ApartmentArrearsViewRecord>((row) => {
+    const balance = Number(row.balance ?? 0);
+    return {
+      userId: row.user_id,
+      tenantId: row.tenant_id,
+      tenantName: row.full_name,
+      phoneNumber: row.phone_number ?? undefined,
+      houseId: row.house_id,
+      houseNumber: row.house_number,
+      rentAmount: Number(row.rent_amount ?? 0),
+      blockName: row.block_name,
+      apartmentName: row.apartment_name,
+      monthsStayed: Number(row.months_stayed ?? 0) || undefined,
+      totalExpectedRent: Number(row.total_expected_rent ?? 0),
+      totalPaid: Number(row.total_paid ?? 0),
+      balance,
+      status: balance <= 0 ? 'paid' : 'unpaid'
+    };
+  });
 };

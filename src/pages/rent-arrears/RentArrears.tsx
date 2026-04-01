@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import Card from '../../components/ui/Card';
 import ArrearsList from '../../components/rent/ArrearsList';
 import useArrears from '../../hooks/useArrears';
 import useDashboardSummary from '../../hooks/useDashboardSummary';
@@ -6,6 +7,9 @@ import useUnits from '../../hooks/useUnits';
 import useAuth from '../../hooks/useAuth';
 import { useCurrency } from '../../context/currency';
 import PageLoader from '../../components/ui/PageLoader';
+import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
+import { fetchApartmentArrearsView, type ApartmentArrearsViewRecord } from '../../services/paymentService';
+import { isUuid } from '../../utils/uuid';
 
 const RentArrears = () => {
   const { formatCurrency } = useCurrency();
@@ -14,6 +18,13 @@ const RentArrears = () => {
   const { arrears, totalDue, tenantBalances, isLoading } = useArrears();
   const { summary } = useDashboardSummary();
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
+  const { tenantRecords } = useApartmentTenantTracker();
+  const apartmentTenantIds = useMemo(
+    () => tenantRecords.map((record) => record.id).filter(isUuid),
+    [tenantRecords]
+  );
+  const [apartmentArrearsRecords, setApartmentArrearsRecords] = useState<ApartmentArrearsViewRecord[]>([]);
+  const [loadingApartmentArrears, setLoadingApartmentArrears] = useState(false);
 
   const filteredArrears = useMemo(
     () =>
@@ -30,6 +41,36 @@ const RentArrears = () => {
     );
     return tenantBalances.filter((balance) => arrearsByUnit.has(balance.tenantId));
   }, [tenantBalances, filteredArrears, selectedUnitId]);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      if (!user?.id) {
+        setApartmentArrearsRecords([]);
+        return;
+      }
+      if (apartmentTenantIds.length === 0) {
+        setApartmentArrearsRecords([]);
+        return;
+      }
+      setLoadingApartmentArrears(true);
+      try {
+        const records = await fetchApartmentArrearsView(apartmentTenantIds);
+        if (!mounted) return;
+        setApartmentArrearsRecords(records.filter((record) => record.userId === user?.id));
+      } catch (error) {
+        console.error('loadApartmentArrearsRecords error', error);
+      } finally {
+        if (mounted) {
+          setLoadingApartmentArrears(false);
+        }
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [apartmentTenantIds, user?.id]);
 
   const filteredTotalDue = useMemo(
     () => filteredArrears.reduce((sum, arrear) => sum + arrear.amountDue, 0),
@@ -92,6 +133,34 @@ const RentArrears = () => {
           <p className="text-xs text-gray-400">Sum of tenant arrears</p>
         </div>
       </div>
+
+      <Card title="Apartment tenant arrears">
+        {loadingApartmentArrears ? (
+          <p className="text-sm text-gray-500">Loading apartment arrears…</p>
+        ) : apartmentArrearsRecords.length === 0 ? (
+          <p className="text-sm text-gray-500">No apartment tenants currently owe rent.</p>
+        ) : (
+          <div className="space-y-3">
+            {apartmentArrearsRecords.map((record) => {
+              const balance = Number(record.balance ?? 0);
+              return (
+                <div key={`${record.tenantId}-${record.apartmentName}`} className="rounded-lg border border-gray-100 p-3">
+                  <p className="font-semibold">{record.tenantName ?? 'Unnamed tenant'}</p>
+                  <p className="text-xs text-gray-500">
+                    {record.apartmentName} · {record.blockName}
+                  </p>
+                  <p className="text-sm">
+                    Total rent: {formatCurrency(record.totalExpectedRent)} · Paid: {formatCurrency(record.totalPaid)}
+                  </p>
+                  <p className="text-sm font-semibold text-red-600">
+                    {balance <= 0 ? 'Paid' : `Owes ${formatCurrency(balance)}`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       <div className="space-y-6">
         <div className="space-y-3">

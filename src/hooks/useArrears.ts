@@ -9,6 +9,7 @@ import {
 } from '../services/paymentService';
 import { fetchTenants } from '../services/tenantService';
 import useAuth from './useAuth';
+import { isUuid } from '../utils/uuid';
 
 const useArrears = () => {
   const { user } = useAuth();
@@ -29,13 +30,13 @@ const useArrears = () => {
     setIsLoading(true);
     (async () => {
       try {
-        const [arrearsRecords, tenantRecords, apartmentArrearsRecords, apartmentPaidRecords] =
-          await Promise.all([
-            fetchRentArrearsView(user.id),
-            fetchTenants(user.id),
-            fetchApartmentArrearsView(user.id),
-            fetchApartmentPaidView(user.id)
-          ]);
+        const tenantRecords = await fetchTenants(user.id);
+        const tenantIds = tenantRecords.map((tenant) => tenant.id).filter(isUuid);
+        const [arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords] = await Promise.all([
+          fetchRentArrearsView(user.id),
+          fetchApartmentArrearsView(tenantIds),
+          fetchApartmentPaidView(user.id)
+        ]);
 
         const uniqueArrearsRecords = Array.from(
           new Map(arrearsRecords.map((record) => [record.tenant_id, record])).values()

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Tenant } from '../types/tenant';
-import { fetchTenants } from '../services/tenantService';
+import { fetchTenants, fetchApartmentTenants } from '../services/tenantService';
 import useAuth from './useAuth';
 
 const useTenants = () => {
@@ -23,7 +23,11 @@ const useTenants = () => {
       if (mounted) {
         setIsLoading(true);
       }
-      const data = await fetchTenants(user.id);
+      const [unitTenants, apartmentTenants] = await Promise.all([
+        fetchTenants(user.id),
+        fetchApartmentTenants(user.id)
+      ]);
+      const data = [...unitTenants, ...apartmentTenants];
       if (mounted) {
         setTenants(data);
         setIsLoading(false);
@@ -44,7 +48,11 @@ const useTenants = () => {
       return;
     }
     setIsLoading(true);
-    const data = await fetchTenants(user.id);
+    const [unitTenants, apartmentTenants] = await Promise.all([
+      fetchTenants(user.id),
+      fetchApartmentTenants(user.id)
+    ]);
+    const data = [...unitTenants, ...apartmentTenants];
     setTenants(data);
     setIsLoading(false);
   };

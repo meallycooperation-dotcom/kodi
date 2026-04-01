@@ -42,6 +42,32 @@ const mapTenantRow = (row: TenantRow): Tenant => ({
   createdAt: row.created_at
 });
 
+type ApartmentTenantRow = {
+  id: string;
+  user_id: string | null;
+  house_id: string;
+  full_name: string | null;
+  phone_number: string | null;
+  move_in_date: string | null;
+  created_at: string;
+  houses: {
+    house_number: string | null;
+  } | null;
+};
+
+const mapApartmentTenantRow = (row: ApartmentTenantRow): Tenant => ({
+  id: row.id,
+  userId: row.user_id,
+  unitId: null,
+  houseNumber: row.houses?.house_number ?? undefined,
+  fullName: row.full_name ?? '',
+  phone: row.phone_number ?? '',
+  email: '',
+  moveInDate: row.move_in_date ?? undefined,
+  status: 'active',
+  createdAt: row.created_at
+});
+
 export const fetchTenants = async (userId?: string) => {
   let query = supabase.from('tenants').select('*');
   if (userId) {
@@ -50,6 +76,20 @@ export const fetchTenants = async (userId?: string) => {
   const { data, error } = await query;
   handleError(error);
   return (data ?? []).map(mapTenantRow);
+};
+
+export const fetchApartmentTenants = async (userId?: string) => {
+  if (!userId) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('apartment_tenants')
+    .select('*, houses!inner(house_number)')
+    .eq('user_id', userId);
+
+  handleError(error);
+  return (data ?? []).map(mapApartmentTenantRow);
 };
 
 export const insertTenant = async (payload: NewTenantInput) => {

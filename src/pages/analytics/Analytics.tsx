@@ -21,6 +21,7 @@ import type { AirbnbTenant } from '../../types/airbnbTenant';
 import type { Tenant } from '../../types/tenant';
 import { useCurrency } from '../../context/currency';
 import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
+import { isUuid } from '../../utils/uuid';
 
 type ScopeValue = 'all' | 'airbnb' | `unit:${string}` | `apartment:${string}`;
 type ParsedScope =
@@ -43,6 +44,7 @@ const Analytics = () => {
   const [apartmentPaidRecords, setApartmentPaidRecords] = useState<ApartmentPaidViewRecord[]>([]);
   const [apartmentArrearsRecords, setApartmentArrearsRecords] = useState<ApartmentArrearsViewRecord[]>([]);
   const { apartments, tenantRecords, totalTenants: apartmentTenantTotal } = useApartmentTenantTracker();
+  const tenantIds = useMemo(() => tenants.map((tenant) => tenant.id).filter(isUuid), [tenants]);
   const loadAirbnbData = useCallback(async () => {
     if (!user?.id) {
       setAirbnbTenants([]);
@@ -78,7 +80,7 @@ const Analytics = () => {
       try {
         const [paidRes, arrearsRes] = await Promise.all([
           fetchApartmentPaidView(user.id),
-          fetchApartmentArrearsView(user.id)
+          fetchApartmentArrearsView(tenantIds)
         ]);
         if (!mounted) {
           return;
@@ -95,7 +97,7 @@ const Analytics = () => {
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, tenantIds]);
 
   const parsedScope = useMemo<ParsedScope>(() => {
     if (selectedScope === 'all') {

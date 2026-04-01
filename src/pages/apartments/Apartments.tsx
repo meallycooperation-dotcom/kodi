@@ -15,6 +15,8 @@ import {
 } from '../../services/paymentService';
 import { useCurrency } from '../../context/currency';
 import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
+import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
+import { isUuid } from '../../utils/uuid';
 // Removed duplicateTenant/Unit type imports to fix redeclaration
 // Plan title mapping for apartments (shared naming with other pages)
 const planTitleMapApartments: Record<'basic' | 'standard' | 'premium', string> = {
@@ -30,6 +32,7 @@ export default function ApartmentManager() {
   const userId = user?.id;
   const { formatCurrency } = useCurrency();
   const { arrears } = useArrears();
+  const { tenantRecords } = useApartmentTenantTracker();
 
   const formatBlockPrice = (value: string | number | null | undefined) => {
     if (value === null || value === undefined) {
@@ -74,6 +77,10 @@ export default function ApartmentManager() {
   const [paidViewRecords, setPaidViewRecords] = useState<ApartmentPaidViewRecord[]>([]);
   const [arrearsViewRecords, setArrearsViewRecords] = useState<ApartmentArrearsViewRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const apartmentTenantIds = useMemo(
+    () => tenantRecords.map((record) => record.id).filter(isUuid),
+    [tenantRecords]
+  );
 
   const fetchApartments = async () => {
     if (!userId) {
@@ -139,7 +146,7 @@ export default function ApartmentManager() {
     try {
       const [paid, arrears] = await Promise.all([
         fetchApartmentPaidView(userId),
-        fetchApartmentArrearsView(userId)
+        fetchApartmentArrearsView(apartmentTenantIds)
       ]);
 
       setPaidViewRecords(paid);
@@ -147,7 +154,7 @@ export default function ApartmentManager() {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, apartmentTenantIds]);
 
   // planPanel and limit logic will be defined after subscription is loaded to avoid TDZ
 
@@ -358,7 +365,8 @@ export default function ApartmentManager() {
         full_name: tenantFullName,
         phone_number: tenantPhoneNumber || null,
         id_number: tenantIdNumber || null,
-        move_in_date: tenantMoveInDate || null
+        move_in_date: tenantMoveInDate || null,
+        user_id: userId ?? null
       })
       .select('*')
       .single();
@@ -474,8 +482,14 @@ export default function ApartmentManager() {
     if (!houseModal?.tenant?.id) {
       return [];
     }
-    return arrears.filter((entry) => entry.tenantId === houseModal.tenant.id);
-  }, [arrears, houseModal?.tenant?.id]);
+    return arrearsViewRecords
+      .filter((record) => record.tenantId === houseModal.tenant.id)
+      .map((record, index) => ({
+        ...record,
+        amountDue: Number(record.balance ?? 0),
+        id: `${record.tenantId}-${index}`
+      }));
+  }, [arrearsViewRecords, houseModal?.tenant?.id]);
 
   const modalTenantArrearsTotal = useMemo(
     () => modalTenantArrears.reduce((sum, entry) => sum + entry.amountDue, 0),
