@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 // Simple payment callback page: read query params and redirect to dashboard
-export default function PaymentCallback(): JSX.Element {
+export default function PaymentCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
