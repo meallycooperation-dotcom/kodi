@@ -386,6 +386,7 @@ const RentPaid = () => {
           units={unitsForDropdown}
           apartmentId={selectedApartmentId !== 'all' ? selectedApartmentId : undefined}
           apartmentBlockId={selectedBlockId !== 'all' ? selectedBlockId : undefined}
+          apartmentOwnerId={user?.id}
         />
       )}
 

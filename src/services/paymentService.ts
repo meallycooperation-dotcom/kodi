@@ -172,6 +172,7 @@ export type ApartmentPaymentInput = {
   reference?: string;
   status?: string;
   notes?: string;
+  creatorId?: string | null;
 };
 
 export const insertApartmentPayment = async (payload: ApartmentPaymentInput) => {
@@ -187,6 +188,7 @@ export const insertApartmentPayment = async (payload: ApartmentPaymentInput) => 
         amount_paid: payload.amountPaid,
         payment_date: payload.paymentDate ?? null,
         month_paid_for: monthPaidForForDb,
+        creator_id: payload.creatorId ?? null,
         payment_method: payload.paymentMethod ?? null,
         reference: payload.reference ?? null,
         status: payload.status ?? 'completed',

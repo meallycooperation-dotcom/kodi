@@ -574,19 +574,20 @@ const Properties = () => {
               <Modal title={`Tenant in house ${tenantModal.houseNumber ?? ''}`}>
                 <div className="space-y-4">
                   {selectedUnit && (
-                    <PaymentForm
-                      tenants={[tenantModal]}
-                      units={[selectedUnit]}
-                      initialTenantId={tenantModal.id}
-                      initialUnitId={selectedUnit.id}
-                      clientInfo={{
-                        fullName: tenantModal.fullName,
+                  <PaymentForm
+                    tenants={[tenantModal]}
+                    units={[selectedUnit]}
+                    initialTenantId={tenantModal.id}
+                    initialUnitId={selectedUnit.id}
+                    clientInfo={{
+                      fullName: tenantModal.fullName,
                         phone: tenantModal.phone ?? undefined,
                         email: tenantModal.email ?? undefined,
                         houseNumber: tenantModal.houseNumber ?? undefined,
-                        unitNumber: selectedUnit.unitNumber
-                      }}
-                    />
+                      unitNumber: selectedUnit.unitNumber
+                    }}
+                    apartmentOwnerId={user?.id}
+                  />
                   )}
                   <div className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-700">
                     <div className="flex justify-between items-center mb-2">

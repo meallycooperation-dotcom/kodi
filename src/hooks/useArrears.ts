@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Arrear, TenantArrearBalance } from '../types/arrears';
 import { fetchRentArrearsView } from '../services/viewService';
 import {
@@ -17,134 +17,156 @@ const useArrears = () => {
   const [tenantBalances, setTenantBalances] = useState<TenantArrearBalance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let mounted = true;
+  const isMounted = useRef(true);
 
+  const loadArrears = useCallback(async () => {
     if (!user?.id) {
-      setArrears([]);
-      setTenantBalances([]);
-      setIsLoading(false);
+      if (isMounted.current) {
+        setArrears([]);
+        setTenantBalances([]);
+        setIsLoading(false);
+      }
       return;
     }
 
-    setIsLoading(true);
-    (async () => {
-      try {
-        const tenantRecords = await fetchTenants(user.id);
-        const tenantIds = tenantRecords.map((tenant) => tenant.id).filter(isUuid);
-        const [arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords] = await Promise.all([
-          fetchRentArrearsView(user.id),
-          fetchApartmentArrearsView(tenantIds),
-          fetchApartmentPaidView(user.id)
-        ]);
+    if (isMounted.current) {
+      setIsLoading(true);
+    }
 
-        const uniqueArrearsRecords = Array.from(
-          new Map(arrearsRecords.map((record) => [record.tenant_id, record])).values()
-        );
+    try {
+      const tenantRecords = await fetchTenants(user.id);
+      const tenantIds = tenantRecords.map((tenant) => tenant.id).filter(isUuid);
+      const [arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords] = await Promise.all([
+        fetchRentArrearsView(user.id),
+        fetchApartmentArrearsView(tenantIds),
+        fetchApartmentPaidView(user.id)
+      ]);
 
-        const tenantById = new Map(tenantRecords.map((t) => [t.id, t.fullName]));
-        const unitByTenant = new Map(tenantRecords.map((t) => [t.id, t.unitId]));
+      const uniqueArrearsRecords = Array.from(
+        new Map(arrearsRecords.map((record) => [record.tenant_id, record])).values()
+      );
 
-        const mapped = uniqueArrearsRecords.map<Arrear>((record) => {
-          const arrearsValue = Number(record.arrears ?? 0);
-          return {
-            id: `unit-${record.tenant_id}`,
-            tenantId: record.tenant_id,
-            unitId: unitByTenant.get(record.tenant_id) ?? undefined,
-            tenantName:
-              tenantById.get(record.tenant_id) ??
-              record.full_name ??
-              'Unknown tenant',
-            amountDue: arrearsValue,
-            totalExpectedRent: Number(record.total_expected_rent ?? 0),
-            totalPaid: Number(record.total_paid ?? 0),
-            monthsStayed: Number(record.months_stayed ?? 0) || undefined,
-            status:
-              (record.status as Arrear['status']) ??
-              (arrearsValue <= 0 ? 'paid' : 'unpaid'),
-            createdAt: new Date().toISOString()
-          };
-        });
+      const tenantById = new Map(tenantRecords.map((t) => [t.id, t.fullName]));
+      const unitByTenant = new Map(tenantRecords.map((t) => [t.id, t.unitId]));
 
-        const apartmentPaidMap = new Map<string, ApartmentPaidViewRecord[]>();
-        apartmentPaidRecords.forEach((record) => {
-          if (!record.tenantId) {
-            return;
-          }
-          const values = apartmentPaidMap.get(record.tenantId) ?? [];
-          values.push(record);
-          apartmentPaidMap.set(record.tenantId, values);
-        });
+      const mapped = uniqueArrearsRecords.map<Arrear>((record) => {
+        const arrearsValue = Number(record.arrears ?? 0);
+        return {
+          id: `unit-${record.tenant_id}`,
+          tenantId: record.tenant_id,
+          unitId: unitByTenant.get(record.tenant_id) ?? undefined,
+          tenantName:
+            tenantById.get(record.tenant_id) ??
+            record.full_name ??
+            'Unknown tenant',
+          amountDue: arrearsValue,
+          totalExpectedRent: Number(record.total_expected_rent ?? 0),
+          totalPaid: Number(record.total_paid ?? 0),
+          monthsStayed: Number(record.months_stayed ?? 0) || undefined,
+          status:
+            (record.status as Arrear['status']) ??
+            (arrearsValue <= 0 ? 'paid' : 'unpaid'),
+          createdAt: new Date().toISOString()
+        };
+      });
 
-        const uniqueApartmentArrears = Array.from(
-          new Map<string, ApartmentArrearsViewRecord>(
-            apartmentArrearsRecords.map((record) => [record.tenantId, record])
-          ).values()
-        );
-
-        const apartmentMapped = uniqueApartmentArrears.map<Arrear>((record) => {
-          const apartmentPaid = apartmentPaidMap.get(record.tenantId);
-          const tenantName =
-            record.tenantName ??
-            apartmentPaid?.[0]?.tenantName ??
-            'Unknown tenant';
-          const arrearsValue = Number(record.balance ?? 0);
-          return {
-            id: `apt-${record.tenantId}`,
-            tenantId: record.tenantId,
-            unitId: record.apartmentName ?? undefined,
-            tenantName,
-            amountDue: arrearsValue,
-            totalExpectedRent: record.totalExpectedRent,
-            totalPaid: record.totalPaid,
-            monthsStayed: record.monthsStayed,
-            status: record.status ?? (arrearsValue <= 0 ? 'paid' : 'unpaid'),
-            createdAt: new Date().toISOString()
-          };
-        });
-
-        const combined = [...mapped, ...apartmentMapped];
-
-        const balanceMap = new Map<string, TenantArrearBalance>();
-        combined.forEach((entry) => {
-          const existing = balanceMap.get(entry.tenantId);
-          const totalExpectedRent =
-            entry.totalExpectedRent || existing?.totalExpectedRent || 0;
-          const totalPaid = entry.totalPaid || existing?.totalPaid || 0;
-          const arrears = entry.amountDue;
-          const monthsStayed = entry.monthsStayed ?? existing?.monthsStayed;
-          const status =
-            entry.status ??
-            existing?.status ??
-            (arrears <= 0 ? 'paid' : 'unpaid');
-          balanceMap.set(entry.tenantId, {
-            tenantId: entry.tenantId,
-            tenantName: entry.tenantName ?? existing?.tenantName ?? 'Unknown',
-            totalExpectedRent,
-            totalPaid,
-            arrears,
-            monthsStayed,
-            status
-          });
-        });
-        const balances = Array.from(balanceMap.values()).sort((a, b) => b.arrears - a.arrears);
-
-        if (mounted) setArrears(combined);
-        if (mounted) setTenantBalances(balances);
-      } catch (error) {
-        console.error('useArrears error', error);
-      }
-      finally {
-        if (mounted) {
-          setIsLoading(false);
+      const apartmentPaidMap = new Map<string, ApartmentPaidViewRecord[]>();
+      apartmentPaidRecords.forEach((record) => {
+        if (!record.tenantId) {
+          return;
         }
-      }
-    })();
+        const values = apartmentPaidMap.get(record.tenantId) ?? [];
+        values.push(record);
+        apartmentPaidMap.set(record.tenantId, values);
+      });
 
-    return () => {
-      mounted = false;
-    };
+      const uniqueApartmentArrears = Array.from(
+        new Map<string, ApartmentArrearsViewRecord>(
+          apartmentArrearsRecords.map((record) => [record.tenantId, record])
+        ).values()
+      );
+
+      const apartmentMapped = uniqueApartmentArrears.map<Arrear>((record) => {
+        const apartmentPaid = apartmentPaidMap.get(record.tenantId);
+        const tenantName =
+          record.tenantName ??
+          apartmentPaid?.[0]?.tenantName ??
+          'Unknown tenant';
+        const arrearsValue = Number(record.balance ?? 0);
+        return {
+          id: `apt-${record.tenantId}`,
+          tenantId: record.tenantId,
+          unitId: record.apartmentName ?? undefined,
+          tenantName,
+          amountDue: arrearsValue,
+          totalExpectedRent: record.totalExpectedRent,
+          totalPaid: record.totalPaid,
+          monthsStayed: record.monthsStayed,
+          status: record.status ?? (arrearsValue <= 0 ? 'paid' : 'unpaid'),
+          createdAt: new Date().toISOString()
+        };
+      });
+
+      const combined = [...mapped, ...apartmentMapped];
+
+      const balanceMap = new Map<string, TenantArrearBalance>();
+      combined.forEach((entry) => {
+        const existing = balanceMap.get(entry.tenantId);
+        const totalExpectedRent =
+          entry.totalExpectedRent || existing?.totalExpectedRent || 0;
+        const totalPaid = entry.totalPaid || existing?.totalPaid || 0;
+        const arrears = entry.amountDue;
+        const monthsStayed = entry.monthsStayed ?? existing?.monthsStayed;
+        const status =
+          entry.status ??
+          existing?.status ??
+          (arrears <= 0 ? 'paid' : 'unpaid');
+        balanceMap.set(entry.tenantId, {
+          tenantId: entry.tenantId,
+          tenantName: entry.tenantName ?? existing?.tenantName ?? 'Unknown',
+          totalExpectedRent,
+          totalPaid,
+          arrears,
+          monthsStayed,
+          status
+        });
+      });
+      const balances = Array.from(balanceMap.values()).sort((a, b) => b.arrears - a.arrears);
+
+      if (isMounted.current) {
+        setArrears(combined);
+        setTenantBalances(balances);
+      }
+    } catch (error) {
+      console.error('useArrears error', error);
+    } finally {
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    loadArrears();
+  }, [loadArrears]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const handler = () => {
+      loadArrears();
+    };
+    window.addEventListener('apartment-payment-recorded', handler);
+    return () => window.removeEventListener('apartment-payment-recorded', handler);
+  }, [loadArrears]);
 
   const totalDue = arrears.reduce((sum, entry) => sum + entry.amountDue, 0);
   const totalExpectedRent = tenantBalances.reduce(

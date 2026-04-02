@@ -779,21 +779,22 @@ export default function ApartmentManager() {
               </Button>
             </div>
 
-            {tenantLoading ? (
-              <p className="text-sm text-gray-600">Loading tenant information…</p>
-            ) : houseModal.tenant ? (
-              <div className="space-y-4">
-                {selectedApartment?.id && modalTenantOptions?.length && modalUnitOptions?.length && (
-                  <PaymentForm
-                    tenants={modalTenantOptions}
-                    units={modalUnitOptions}
-                    apartmentId={selectedApartment.id}
-                    apartmentBlockId={modalBlockId}
-                    initialTenantId={modalTenantOptions[0].id}
-                    initialUnitId={modalUnitOptions[0].id}
-                    clientInfo={modalClientInfo}
-                  />
-                )}
+          {tenantLoading ? (
+            <p className="text-sm text-gray-600">Loading tenant information…</p>
+          ) : houseModal.tenant ? (
+            <div className="space-y-4">
+              {selectedApartment?.id && modalTenantOptions?.length && modalUnitOptions?.length && (
+                <PaymentForm
+                  tenants={modalTenantOptions}
+                  units={modalUnitOptions}
+                  apartmentId={selectedApartment.id}
+                  apartmentBlockId={modalBlockId}
+                  initialTenantId={modalTenantOptions[0].id}
+                  initialUnitId={modalUnitOptions[0].id}
+                  clientInfo={modalClientInfo}
+                  apartmentOwnerId={userId}
+                />
+              )}
                 <div className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-700">
                   <div className="flex justify-between items-center mb-2">
                     <p className="font-semibold text-gray-900">Tenants arrears</p>

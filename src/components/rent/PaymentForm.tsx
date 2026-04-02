@@ -23,6 +23,7 @@ type PaymentFormProps = {
     houseNumber?: string;
     unitNumber?: string;
   };
+  apartmentOwnerId?: string | null;
 };
 
 type PaymentTenant = Tenant & {
@@ -37,7 +38,8 @@ const PaymentForm = ({
   apartmentBlockId,
   initialTenantId,
   initialUnitId,
-  clientInfo
+  clientInfo,
+  apartmentOwnerId
 }: PaymentFormProps = {}) => {
   const { user } = useAuth();
   const { refresh } = usePayments();
@@ -151,7 +153,8 @@ const PaymentForm = ({
           paymentDate: paymentPayload.paymentDate || undefined,
           monthPaidFor: paymentPayload.monthPaidFor,
           paymentMethod: paymentPayload.paymentMethod,
-          reference: paymentPayload.reference
+          reference: paymentPayload.reference,
+          creatorId: apartmentOwnerId ?? user.id
         });
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
