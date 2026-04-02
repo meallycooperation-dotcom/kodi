@@ -10,6 +10,17 @@ const handleError = (error: Error | null) => {
   }
 };
 
+const monthOnlyPattern = /^\d{4}-\d{2}$/;
+
+const ensureFullMonthPaidForValue = (value: string) => (monthOnlyPattern.test(value) ? `${value}-01` : value);
+
+const formatStoredMonthPaidFor = (value: string | null | undefined) => {
+  if (!value) {
+    return '';
+  }
+  return value.length >= 7 ? value.slice(0, 7) : value;
+};
+
 type PaymentRow = {
   id: string;
   tenant_id: string;
@@ -28,13 +39,14 @@ const mapPaymentRow = (row: PaymentRow): Payment => ({
   unitId: row.unit_id,
   amountPaid: row.amount_paid,
   paymentDate: row.payment_date,
-  monthPaidFor: row.month_paid_for,
+  monthPaidFor: formatStoredMonthPaidFor(row.month_paid_for),
   paymentMethod: row.payment_method ?? undefined,
   reference: row.reference ?? undefined,
   createdAt: row.created_at
 });
 
 export const insertPayment = async (payload: NewPaymentInput) => {
+  const monthPaidForForDb = ensureFullMonthPaidForValue(payload.monthPaidFor);
   const { data, error } = await supabase
     .from('payments')
     .insert([
@@ -43,7 +55,7 @@ export const insertPayment = async (payload: NewPaymentInput) => {
         unit_id: payload.unitId,
         amount_paid: payload.amountPaid,
         payment_date: payload.paymentDate,
-        month_paid_for: payload.monthPaidFor,
+        month_paid_for: monthPaidForForDb,
         payment_method: payload.paymentMethod ?? null,
         reference: payload.reference ?? null
       }
@@ -90,7 +102,7 @@ const mapApartmentPaymentRow = (row: ApartmentPaymentRow): Payment => ({
   unitId: row.apartment_id,
   amountPaid: row.amount_paid,
   paymentDate: row.payment_date,
-  monthPaidFor: row.month_paid_for,
+  monthPaidFor: formatStoredMonthPaidFor(row.month_paid_for),
   paymentMethod: row.payment_method ?? undefined,
   reference: row.reference ?? undefined,
   createdAt: row.created_at,
@@ -136,11 +148,12 @@ export const fetchApartmentPayments = async (creatorId?: string, limit?: number)
 };
 
 export const paymentExistsForMonth = async (tenantId: string, monthPaidFor: string): Promise<boolean> => {
+  const monthForDb = ensureFullMonthPaidForValue(monthPaidFor);
   const { data, error } = await supabase
     .from('payments')
     .select('id')
     .eq('tenant_id', tenantId)
-    .eq('month_paid_for', monthPaidFor)
+    .eq('month_paid_for', monthForDb)
     .limit(1);
 
   handleError(error);
@@ -162,6 +175,7 @@ export type ApartmentPaymentInput = {
 };
 
 export const insertApartmentPayment = async (payload: ApartmentPaymentInput) => {
+  const monthPaidForForDb = ensureFullMonthPaidForValue(payload.monthPaidFor);
   const { data, error } = await supabase
     .from('apartment_payments')
     .insert([
@@ -172,7 +186,7 @@ export const insertApartmentPayment = async (payload: ApartmentPaymentInput) => 
         apartment_id: payload.apartmentId,
         amount_paid: payload.amountPaid,
         payment_date: payload.paymentDate ?? null,
-        month_paid_for: payload.monthPaidFor,
+        month_paid_for: monthPaidForForDb,
         payment_method: payload.paymentMethod ?? null,
         reference: payload.reference ?? null,
         status: payload.status ?? 'completed',
