@@ -283,17 +283,17 @@ export type ApartmentArrearsViewRecord = {
 };
 
 export const fetchApartmentArrearsView = async (tenantIds?: string[]) => {
-  let query = supabase
+  if (!tenantIds || tenantIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
     .from('apartment_arrears_view')
     .select(
       'user_id, tenant_id, full_name, phone_number, house_id, house_number, rent_amount, block_name, apartment_name, months_stayed, total_expected_rent, total_paid, balance'
-    );
+    )
+    .in('tenant_id', tenantIds);
 
-  if (tenantIds && tenantIds.length > 0) {
-    query = query.in('tenant_id', tenantIds);
-  }
-
-  const { data, error } = await query;
   handleError(error);
   return (data ?? []).map<ApartmentArrearsViewRecord>((row) => {
     const balance = Number(row.balance ?? 0);
