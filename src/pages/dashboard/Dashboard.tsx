@@ -70,18 +70,19 @@ const Dashboard = () => {
   // Pricing: dynamic price from Plans catalog with a safe static fallback
   const staticPlanPrices: Record<'basic'|'standard'|'premium', number> = {
     basic: 1499,
-    standard: 2999,
+    standard: 10,
     premium: 4499
   };
   // planPrices are loaded dynamically from fetchPlanPrice and stored in state planPrices
   const amountMap: Record<'basic'|'standard'|'premium', number> = {
     basic: 1499,
-    standard: 2999,
+    standard: 10,
     premium: 4499
   };
 
   // Base URL for API requests (production should set VITE_API_BASE_URL)
-  const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:5000';
+  const API_BASE =
+    (import.meta as any).env?.VITE_API_BASE_URL ?? 'https://kodiserver-production.up.railway.app';
 
   const handleInitializePayment = async (plan: 'basic'|'standard'|'premium') => {
     const amount = amountMap[plan];
