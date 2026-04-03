@@ -123,6 +123,7 @@ const RentPaid = () => {
       const { data, error } = await supabase
         .from('apartment_tenants')
         .select('*, houses(id, house_number, block_id)')
+        .eq('status', 'active')
         .in('houses.block_id', blockIds);
 
       if (error) {

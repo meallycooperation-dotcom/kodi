@@ -4,7 +4,7 @@ import Input from '../../components/ui/Input';
 import PaymentForm from '../../components/rent/PaymentForm';
 import { insertUnit } from '../../services/unitService';
 import { insertHouse } from '../../services/houseService';
-import { insertTenant, insertRentSetting } from '../../services/tenantService';
+import { deleteTenant, insertTenant, insertRentSetting } from '../../services/tenantService';
 import { insertPayment } from '../../services/paymentService';
 import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
 import useAuth from '../../hooks/useAuth';
@@ -30,7 +30,8 @@ const tenantFormInitial = {
   houseNumber: '',
   moveInDate: '',
   rentMode: '',
-  defaultRent: ''
+  defaultRent: '',
+  previousArrears: ''
 };
 
 const planTitleMap: Record<'basic' | 'standard' | 'premium', string> = {
@@ -56,6 +57,9 @@ const Properties = () => {
   const [tenantFormOpen, setTenantFormOpen] = useState(false);
   const [tenantFormStatus, setTenantFormStatus] = useState<string | null>(null);
   const [tenantFormLoading, setTenantFormLoading] = useState(false);
+  const [tenantModalRemoving, setTenantModalRemoving] = useState(false);
+  const [tenantModalStatus, setTenantModalStatus] = useState<string | null>(null);
+  const [confirmRemovalOpen, setConfirmRemovalOpen] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
@@ -222,7 +226,11 @@ const Properties = () => {
     openTenantFormForHouse(houseNumber);
   };
 
-  const closeTenantModal = () => setTenantModal(null);
+  const closeTenantModal = () => {
+    setTenantModal(null);
+    setTenantModalStatus(null);
+    setTenantModalRemoving(false);
+  };
 
   const modalTenantArrears = useMemo(() => {
     if (!tenantModal?.id) {
@@ -235,6 +243,43 @@ const Properties = () => {
     () => modalTenantArrears.reduce((sum, entry) => sum + entry.amountDue, 0),
     [modalTenantArrears]
   );
+
+  useEffect(() => {
+    setTenantModalStatus(null);
+  }, [tenantModal?.id]);
+
+  const executeRemoveTenant = async () => {
+    if (!tenantModal) {
+      return;
+    }
+
+    setTenantModalRemoving(true);
+    setTenantModalStatus(null);
+
+    try {
+      await deleteTenant(tenantModal.id);
+      await refreshTenants();
+      setTenantModal(null);
+      setStatusMessage(
+        `${tenantModal.fullName || 'Tenant'} removed from unit ${selectedUnit?.unitNumber ?? ''}.`
+      );
+    } catch (error) {
+      console.error('remove tenant failed', error);
+      const message =
+        error instanceof Error ? error.message : 'Failed to remove tenant. Try again.';
+      setTenantModalStatus(message);
+    } finally {
+      setTenantModalRemoving(false);
+      setConfirmRemovalOpen(false);
+    }
+  };
+
+  const promptRemoveTenant = () => {
+    if (!tenantModal) {
+      return;
+    }
+    setConfirmRemovalOpen(true);
+  };
 
   const handleTenantFormChange = (field: keyof typeof tenantFormInitial, value: string) => {
     setTenantFormData((prev) => ({ ...prev, [field]: value }));
@@ -296,6 +341,9 @@ const Properties = () => {
     setTenantFormStatus(null);
 
     try {
+      const parsedArrears = parseFloat(tenantFormData.previousArrears);
+      const arrears = Number.isNaN(parsedArrears) ? 0 : parsedArrears;
+
       const createdTenant = await insertTenant({
         userId: user.id,
         unitId: tenantFormData.unitId,
@@ -304,6 +352,7 @@ const Properties = () => {
         phone: tenantFormData.phone,
         email: tenantFormData.email,
         moveInDate: tenantFormData.moveInDate || undefined,
+        arrears,
         status: 'active'
       });
 
@@ -622,15 +671,54 @@ const Properties = () => {
                       <p className="text-xs text-gray-500">No outstanding balances.</p>
                     )}
                   </div>
-                  <div className="mt-4 flex justify-end">
+                  {tenantModalStatus && (
+                    <p className="text-sm text-red-600">{tenantModalStatus}</p>
+                  )}
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        className="border-red-100 text-red-600 hover:bg-red-50 disabled:text-red-400 disabled:border-red-200"
+                        onClick={promptRemoveTenant}
+                        disabled={tenantModalRemoving}
+                      >
+                      {tenantModalRemoving ? 'Removing…' : 'Remove tenant'}
+                    </Button>
                     <Button variant="ghost" type="button" onClick={closeTenantModal}>
                       Close
                     </Button>
                   </div>
                 </div>
-              </Modal>
-            )}
-            {tenantFormOpen && (
+            </Modal>
+          )}
+          {confirmRemovalOpen && (
+            <Modal title="Remove tenant">
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to mark this tenant as inactive? The house will be freed for new occupants.
+                </p>
+                <div className="flex items-center justify-end gap-3">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => setConfirmRemovalOpen(false)}
+                    className="px-3 py-2 text-sm"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="px-3 py-2 text-sm border-red-100 text-red-600 hover:bg-red-50"
+                    onClick={executeRemoveTenant}
+                    disabled={tenantModalRemoving}
+                  >
+                    {tenantModalRemoving ? 'Removing…' : 'Confirm removal'}
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+          )}
+          {tenantFormOpen && (
               <Modal title="Add tenant">
                 <form className="tenant-form space-y-4" onSubmit={handleTenantFormSubmit}>
                   <Input
@@ -713,6 +801,15 @@ const Properties = () => {
                     type="number"
                     value={tenantFormData.defaultRent}
                     onChange={(event) => handleTenantFormChange('defaultRent', event.target.value)}
+                  />
+                  <Input
+                    label="Previous arrears"
+                    name="previousArrears"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={tenantFormData.previousArrears}
+                    onChange={(event) => handleTenantFormChange('previousArrears', event.target.value)}
                   />
                   <Button type="submit" disabled={tenantFormLoading}>
                     {tenantFormLoading ? 'Saving…' : 'Create tenant'}

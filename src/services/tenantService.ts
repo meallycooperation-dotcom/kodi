@@ -27,6 +27,7 @@ type TenantRow = {
   move_in_date: string | null;
   status: string;
   created_at: string;
+  arrears: number | null;
 };
 
 const mapTenantRow = (row: TenantRow): Tenant => ({
@@ -39,6 +40,7 @@ const mapTenantRow = (row: TenantRow): Tenant => ({
   email: row.email ?? '',
   moveInDate: row.move_in_date ?? undefined,
   status: (row.status as Tenant['status']) ?? 'active',
+  arrears: row.arrears ?? 0,
   createdAt: row.created_at
 });
 
@@ -69,7 +71,7 @@ const mapApartmentTenantRow = (row: ApartmentTenantRow): Tenant => ({
 });
 
 export const fetchTenants = async (userId?: string) => {
-  let query = supabase.from('tenants').select('*');
+  let query = supabase.from('tenants').select('*').eq('status', 'active');
   if (userId) {
     query = query.eq('user_id', userId);
   }
@@ -86,6 +88,7 @@ export const fetchApartmentTenants = async (userId?: string) => {
   const { data, error } = await supabase
     .from('apartment_tenants')
     .select('*, houses!inner(house_number)')
+    .eq('status', 'active')
     .eq('user_id', userId);
 
   handleError(error);
@@ -104,6 +107,7 @@ export const insertTenant = async (payload: NewTenantInput) => {
         phone: payload.phone,
         email: payload.email,
         move_in_date: payload.moveInDate ?? null,
+        arrears: payload.arrears ?? 0,
         status: payload.status
       }
     ])
@@ -111,6 +115,24 @@ export const insertTenant = async (payload: NewTenantInput) => {
     .single();
   handleError(error);
   return mapTenantRow(data as TenantRow);
+};
+
+export const deleteTenant = async (tenantId: string) => {
+  const { error } = await supabase
+    .from('tenants')
+    .update({ status: 'inactive' })
+    .eq('id', tenantId);
+
+  handleError(error);
+};
+
+export const deactivateApartmentTenant = async (tenantId: string) => {
+  const { error } = await supabase
+    .from('apartment_tenants')
+    .update({ status: 'inactive' })
+    .eq('id', tenantId);
+
+  handleError(error);
 };
 
 export const insertRentSetting = async (payload: RentSettingInput) => {

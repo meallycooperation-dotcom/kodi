@@ -17,6 +17,7 @@ import { useCurrency } from '../../context/currency';
 import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/subscriptionService';
 import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
 import { isUuid } from '../../utils/uuid';
+import { deactivateApartmentTenant } from '../../services/tenantService';
 // Removed duplicateTenant/Unit type imports to fix redeclaration
 // Plan title mapping for apartments (shared naming with other pages)
 const planTitleMapApartments: Record<'basic' | 'standard' | 'premium', string> = {
@@ -67,10 +68,14 @@ export default function ApartmentManager() {
     house: any;
     tenant: any | null;
   } | null>(null);
+  const [tenantModalStatus, setTenantModalStatus] = useState<string | null>(null);
+  const [tenantModalRemoving, setTenantModalRemoving] = useState(false);
   const [tenantFullName, setTenantFullName] = useState('');
+  const [confirmRemovalOpen, setConfirmRemovalOpen] = useState(false);
   const [tenantPhoneNumber, setTenantPhoneNumber] = useState('');
   const [tenantIdNumber, setTenantIdNumber] = useState('');
   const [tenantMoveInDate, setTenantMoveInDate] = useState('');
+  const [tenantArrears, setTenantArrears] = useState('');
   const [tenantLoading, setTenantLoading] = useState(false);
   const [houseModalLoading, setHouseModalLoading] = useState(false);
   const [apartmentHouses, setApartmentHouses] = useState<any[]>([]);
@@ -131,7 +136,13 @@ export default function ApartmentManager() {
     const ordered = (data || []).slice().sort((a, b) =>
       String(a.house_number).localeCompare(String(b.house_number))
     );
-    setApartmentHouses(ordered);
+    const sanitized = ordered.map((house) => ({
+      ...house,
+      apartment_tenants: (house.apartment_tenants ?? []).filter(
+        (tenant: any) => tenant.status === 'active'
+      )
+    }));
+    setApartmentHouses(sanitized);
   };
 
   const loadApartmentViews = useCallback(async () => {
@@ -323,6 +334,7 @@ export default function ApartmentManager() {
       .from('apartment_tenants')
       .select('*')
       .eq('house_id', house.id)
+      .eq('status', 'active')
       .maybeSingle();
 
     setTenantLoading(false);
@@ -338,6 +350,7 @@ export default function ApartmentManager() {
       setTenantPhoneNumber(data.phone_number ?? '');
       setTenantIdNumber(data.id_number ?? '');
       setTenantMoveInDate(data.move_in_date ?? '');
+      setTenantArrears(data.arrears != null ? String(data.arrears) : '');
     }
   };
 
@@ -347,7 +360,10 @@ export default function ApartmentManager() {
     setTenantPhoneNumber('');
     setTenantIdNumber('');
     setTenantMoveInDate('');
+    setTenantArrears('');
     setHouseModalLoading(false);
+    setTenantModalStatus(null);
+    setTenantModalRemoving(false);
   };
 
   const handleTenantSubmit = async (e: FormEvent) => {
@@ -357,6 +373,8 @@ export default function ApartmentManager() {
     }
 
     setHouseModalLoading(true);
+    const parsedTenantArrears = Number(tenantArrears);
+    const arrearsValue = Number.isNaN(parsedTenantArrears) ? 0 : parsedTenantArrears;
 
     const { data, error } = await supabase
       .from('apartment_tenants')
@@ -366,6 +384,7 @@ export default function ApartmentManager() {
         phone_number: tenantPhoneNumber || null,
         id_number: tenantIdNumber || null,
         move_in_date: tenantMoveInDate || null,
+        arrears: arrearsValue,
         user_id: userId ?? null
       })
       .select('*')
@@ -395,7 +414,56 @@ export default function ApartmentManager() {
     setTenantPhoneNumber('');
     setTenantIdNumber('');
     setTenantMoveInDate('');
+    setTenantArrears('');
     setHouseModalLoading(false);
+  };
+
+  const executeRemoveApartmentTenant = async () => {
+    if (!houseModal?.tenant?.id || !houseModal.house) {
+      return;
+    }
+
+    setTenantModalRemoving(true);
+    setTenantModalStatus(null);
+
+    try {
+      await deactivateApartmentTenant(houseModal.tenant.id);
+      await supabase
+        .from('houses')
+        .update({ status: 'vacant' })
+        .eq('id', houseModal.house.id);
+
+      const updatedHouse = { ...houseModal.house, status: 'vacant' };
+      setHouseModal({ house: updatedHouse, tenant: null });
+
+      const blockId = houseModal.house.block_id || selectedBlock?.id;
+      if (blockId) {
+        await fetchHouses(blockId);
+        const blockIds = blocks.map((block) => block.id);
+        await fetchApartmentHouses(blockIds);
+      }
+
+      setTenantFullName('');
+      setTenantPhoneNumber('');
+      setTenantIdNumber('');
+      setTenantMoveInDate('');
+      setTenantArrears('');
+      setTenantModalStatus('Tenant marked inactive and the unit is now available.');
+    } catch (error) {
+      console.error('Failed to remove apartment tenant', error);
+      const message =
+        error instanceof Error ? error.message : 'Failed to remove tenant. Please try again.';
+      setTenantModalStatus(message);
+    } finally {
+      setTenantModalRemoving(false);
+    }
+  };
+
+  const promptRemoveApartmentTenant = () => {
+    if (!houseModal?.tenant?.id) {
+      return;
+    }
+    setConfirmRemovalOpen(true);
   };
 
   const houseSummary = useMemo(() => {
@@ -829,6 +897,23 @@ export default function ApartmentManager() {
                     <p className="text-xs text-gray-500">No outstanding balances.</p>
                   )}
                 </div>
+                {tenantModalStatus && (
+                  <p className="text-sm text-gray-600">{tenantModalStatus}</p>
+                )}
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    className="border-red-100 text-red-600 hover:bg-red-50 disabled:text-red-400 disabled:border-red-200"
+                    onClick={promptRemoveApartmentTenant}
+                    disabled={tenantModalRemoving}
+                  >
+                    {tenantModalRemoving ? 'Removing…' : 'Remove tenant'}
+                  </Button>
+                  <Button type="button" onClick={closeHouseModal} className="px-3 py-2 text-sm">
+                    Close
+                  </Button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleTenantSubmit} className="space-y-3 text-sm">
@@ -858,6 +943,15 @@ export default function ApartmentManager() {
                   value={tenantMoveInDate}
                   onChange={(e) => setTenantMoveInDate(e.target.value)}
                 />
+                <Input
+                  label="Previous arrears"
+                  placeholder="0.00"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tenantArrears}
+                  onChange={(e) => setTenantArrears(e.target.value)}
+                />
                 <Button
                   type="submit"
                   disabled={!tenantFullName || !tenantMoveInDate || houseModalLoading}
@@ -867,6 +961,36 @@ export default function ApartmentManager() {
                 </Button>
               </form>
             )}
+          </div>
+        </Modal>
+      )}
+      {confirmRemovalOpen && (
+        <Modal title="Remove tenant">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Are you sure you want to mark this tenant as inactive? The house will be freed for new occupants.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => setConfirmRemovalOpen(false)}
+                className="px-3 py-2 text-sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="px-3 py-2 text-sm border-red-100 text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  setConfirmRemovalOpen(false);
+                  executeRemoveApartmentTenant();
+                }}
+                disabled={tenantModalRemoving}
+              >
+                {tenantModalRemoving ? 'Removing…' : 'Confirm removal'}
+              </Button>
+            </div>
           </div>
         </Modal>
       )}

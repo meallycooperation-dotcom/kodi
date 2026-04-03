@@ -8,5 +8,6 @@ export type Tenant = {
   email?: string;
   moveInDate?: string;
   status: 'active' | 'late' | 'vacant' | 'inactive';
+  arrears?: number;
   createdAt: string;
 };

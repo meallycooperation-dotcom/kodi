@@ -279,7 +279,13 @@ export type ApartmentArrearsViewRecord = {
   totalExpectedRent: number;
   totalPaid: number;
   balance: number;
+  previousArrears: number;
   status: 'paid' | 'unpaid';
+};
+
+type ApartmentTenantArrearsRow = {
+  id: string;
+  arrears: number | null;
 };
 
 export const fetchApartmentArrearsView = async (tenantIds?: string[]) => {
@@ -287,16 +293,32 @@ export const fetchApartmentArrearsView = async (tenantIds?: string[]) => {
     return [];
   }
 
-  const { data, error } = await supabase
+  const viewResponse = await supabase
     .from('apartment_arrears_view')
     .select(
       'user_id, tenant_id, full_name, phone_number, house_id, house_number, rent_amount, block_name, apartment_name, months_stayed, total_expected_rent, total_paid, balance'
     )
     .in('tenant_id', tenantIds);
 
-  handleError(error);
-  return (data ?? []).map<ApartmentArrearsViewRecord>((row) => {
-    const balance = Number(row.balance ?? 0);
+  const tenantResponse = await supabase
+    .from('apartment_tenants')
+    .select('id, arrears')
+    .in('id', tenantIds);
+
+  handleError(viewResponse.error);
+  handleError(tenantResponse.error);
+
+  const tenantArrearsMap = new Map(
+    (tenantResponse.data ?? []).map((tenantRow: ApartmentTenantArrearsRow) => [
+      tenantRow.id,
+      Number(tenantRow.arrears ?? 0)
+    ])
+  );
+
+  return (viewResponse.data ?? []).map<ApartmentArrearsViewRecord>((row) => {
+    const baseBalance = Number(row.balance ?? 0);
+    const previousArrears = tenantArrearsMap.get(row.tenant_id) ?? 0;
+    const balance = baseBalance + previousArrears;
     return {
       userId: row.user_id,
       tenantId: row.tenant_id,
@@ -311,6 +333,7 @@ export const fetchApartmentArrearsView = async (tenantIds?: string[]) => {
       totalExpectedRent: Number(row.total_expected_rent ?? 0),
       totalPaid: Number(row.total_paid ?? 0),
       balance,
+      previousArrears,
       status: balance <= 0 ? 'paid' : 'unpaid'
     };
   });

@@ -78,7 +78,10 @@ const useApartmentTenantTracker = () => {
         );
         const houseIds = houseRows.map((house) => house.id);
 
-        const tenantQuery = supabase.from('apartment_tenants').select('id, house_id, full_name');
+        const tenantQuery = supabase
+          .from('apartment_tenants')
+          .select('id, house_id, full_name')
+          .eq('status', 'active');
         if (houseIds.length > 0) {
           tenantQuery.in('house_id', houseIds);
         } else {

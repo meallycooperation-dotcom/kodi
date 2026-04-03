@@ -38,6 +38,12 @@ export type RentArrearsRow = {
   total_paid: number;
   arrears: number;
   status: 'paid' | 'unpaid';
+  previousArrears?: number;
+};
+
+type TenantArrearsRow = {
+  id: string;
+  arrears: number | null;
 };
 
 const handleError = (error: Error | null) => {
@@ -104,5 +110,27 @@ export const fetchRentArrearsView = async (userId?: string): Promise<RentArrears
     .order('arrears', { ascending: false });
 
   handleError(error);
-  return data ?? [];
+  const rows = data ?? [];
+  const tenantIds = Array.from(new Set(rows.map((row) => row.tenant_id)));
+  let tenantArrearsMap = new Map<string, number>();
+  if (tenantIds.length > 0) {
+    const { data: tenantData, error: tenantError } = await supabase
+      .from<TenantArrearsRow>('tenants')
+      .select('id, arrears')
+      .in('id', tenantIds);
+    handleError(tenantError);
+    tenantArrearsMap = new Map(
+      (tenantData ?? []).map((tenantRow) => [tenantRow.id, Number(tenantRow.arrears ?? 0)])
+    );
+  }
+
+  return rows.map((row) => {
+    const previousArrears = tenantArrearsMap.get(row.tenant_id) ?? 0;
+    const totalArrears = Number(row.arrears ?? 0) + previousArrears;
+    return {
+      ...row,
+      arrears: totalArrears,
+      previousArrears
+    };
+  });
 };
