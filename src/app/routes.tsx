@@ -10,6 +10,7 @@ import Reminders from '../pages/reminders/Reminders';
 import RentArrears from '../pages/rent-arrears/RentArrears';
 import RentPaid from '../pages/rent-paid/RentPaid';
 import Settings from '../pages/settings/Settings';
+import Help from '../pages/help/Help';
 import Tenants from '../pages/tenants/Tenants';
 import TenantDetails from '../pages/tenants/TenantDetails';
 import Login from '../pages/auth/Login';
@@ -45,6 +46,7 @@ const routes: AppRoute[] = [
   { path: '/plan', element: withLayout(<Plan />) },
   { path: '/payment/callback', element: <PaymentCallback /> },
   { path: '/settings', element: withLayout(<Settings />) },
+  { path: '/help', element: withLayout(<Help />) },
   { path: '/properties', element: withLayout(<Properties />) },
   { path: '/airbnb', element: withLayout(<Airbnb />) },
   { path: '/apartments', element: withLayout(<Apartments />) },

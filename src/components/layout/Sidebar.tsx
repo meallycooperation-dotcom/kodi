@@ -12,7 +12,8 @@ const sections = [
   { label: 'Reminders', to: '/reminders' },
   { label: 'Notifications', to: '/notifications' },
   { label: 'Plan', to: '/plan' },
-  { label: 'Settings', to: '/settings' }
+  { label: 'Settings', to: '/settings' },
+  { label: 'Help', to: '/help' }
 ];
 
 const Sidebar = () => (
