@@ -5,7 +5,7 @@ type SplashProps = {
 };
 
 const images = [
-  '/images/2i.avif',
+  '/images/yut(1).jpg',
   '/images/3i.avif',
   '/images/pic1.avif'
 ];
