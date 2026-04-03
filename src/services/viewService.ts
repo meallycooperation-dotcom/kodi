@@ -115,7 +115,7 @@ export const fetchRentArrearsView = async (userId?: string): Promise<RentArrears
   let tenantArrearsMap = new Map<string, number>();
   if (tenantIds.length > 0) {
     const { data: tenantData, error: tenantError } = await supabase
-      .from<TenantArrearsRow>('tenants')
+      .from('tenants')
       .select('id, arrears')
       .in('id', tenantIds);
     handleError(tenantError);
