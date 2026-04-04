@@ -349,6 +349,34 @@ main {
   font-size: 1rem;
 }
 
+.reminder-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reminder-card__delete {
+  border: none;
+  background: none;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.reminder-card__delete:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.reminder-card__delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .arrears-list {
   list-style: none;
   padding: 0;

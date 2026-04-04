@@ -83,3 +83,11 @@ export const fetchUnits = async (
 
   return (data ?? []).map((row) => mapUnitRow(row as UnitRow));
 };
+
+export const deleteUnit = async (id: string) => {
+  const { error } = await supabase.from('units').delete().eq('id', id);
+  if (error) {
+    console.error('deleteUnit', error);
+    throw error;
+  }
+};

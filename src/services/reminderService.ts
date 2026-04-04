@@ -73,3 +73,8 @@ export const updateReminder = async (id: string, status: Reminder['status']) => 
   handleError(error);
   return mapReminderRow(data as ReminderRow);
 };
+
+export const deleteReminder = async (id: string) => {
+  const { error } = await supabase.from('reminders').delete().eq('id', id);
+  handleError(error);
+};

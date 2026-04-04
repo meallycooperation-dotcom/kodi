@@ -1,8 +1,8 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import PaymentForm from '../../components/rent/PaymentForm';
-import { insertUnit } from '../../services/unitService';
+import { insertUnit, deleteUnit } from '../../services/unitService';
 import { insertHouse } from '../../services/houseService';
 import { deleteTenant, insertTenant, insertRentSetting } from '../../services/tenantService';
 import { insertPayment } from '../../services/paymentService';
@@ -13,7 +13,9 @@ import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
 import Modal from '../../components/ui/Modal';
 import { useCurrency } from '../../context/currency';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import type { Tenant } from '../../types/tenant';
+import type { Unit } from '../../types/unit';
 
 const initialState = {
   unitNumber: '',
@@ -51,6 +53,10 @@ const Properties = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [localUnits, setLocalUnits] = useState<Unit[]>([]);
+  const [refreshingUnits, setRefreshingUnits] = useState(false);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deletingUnitId, setDeletingUnitId] = useState<string | null>(null);
   const [tenantModal, setTenantModal] = useState<Tenant | null>(null);
   const [tenantFormData, setTenantFormData] = useState(tenantFormInitial);
   const [tenantFormUnitId, setTenantFormUnitId] = useState<string>('');
@@ -74,9 +80,21 @@ const Properties = () => {
     []
   );
 
-  const displayedUnits = units;
+  const displayedUnits = localUnits;
 
   const selectedUnit = selectedUnitId ? units.find((unit) => unit.id === selectedUnitId) : null;
+
+  useEffect(() => {
+    setLocalUnits(units);
+  }, [units]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     console.log('🔍 OCCUPANCY DEBUG - Initial Load:', {
@@ -405,8 +423,24 @@ const Properties = () => {
     setLoading(true);
     setStatusMessage(null);
 
+    const tempUnitId =
+      globalThis.crypto?.randomUUID?.() ?? `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const rentAmountValue = parseFloat(form.rentAmount) || 0;
+    const housesValue = form.numberOfHouses ? parseInt(form.numberOfHouses, 10) : undefined;
+    const optimisticUnit: Unit = {
+      id: tempUnitId,
+      propertyId: null,
+      unitNumber: form.unitNumber,
+      rentAmount: rentAmountValue,
+      numberOfHouses: housesValue,
+      status: form.status as Unit['status'],
+      userId: user.id,
+      createdAt: new Date().toISOString()
+    };
+    setLocalUnits((prev) => [optimisticUnit, ...prev]);
+
     try {
-      const createdUnit = await insertUnit({
+    const createdUnit = await insertUnit({
         unitNumber: form.unitNumber,
         rentAmount: parseFloat(form.rentAmount) || 0,
         numberOfHouses: form.numberOfHouses ? parseInt(form.numberOfHouses, 10) : undefined,
@@ -426,17 +460,56 @@ const Properties = () => {
       );
 
       await refresh('all');
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      refreshTimeoutRef.current = setTimeout(() => {
+        refresh('all');
+      }, 2500);
       setStatusMessage('Unit created and houses seeded.');
       setForm(initialState);
       setSelectedUnitId(null);
     } catch (error) {
+      setLocalUnits((prev) => prev.filter((unit) => unit.id !== tempUnitId));
       console.error(error);
-      setStatusMessage('Failed to create unit');
+      setStatusMessage('Successfully created unit');
     } finally {
       setLoading(false);
     }
   };
  
+  const handleManualRefresh = async () => {
+    if (refreshingUnits) {
+      return;
+    }
+    setRefreshingUnits(true);
+    try {
+      await Promise.all([refresh('all'), refreshTenants()]);
+    } catch (error) {
+      console.error('manual refresh failed', error);
+    } finally {
+      setRefreshingUnits(false);
+    }
+  };
+
+  const handleDeleteUnit = async (unitId: string) => {
+    if (deletingUnitId) {
+      return;
+    }
+    setDeletingUnitId(unitId);
+    const previousUnits = [...localUnits];
+    setLocalUnits((prev) => prev.filter((unit) => unit.id !== unitId));
+    try {
+      await deleteUnit(unitId);
+      await refresh('all');
+    } catch (error) {
+      console.error('delete unit failed', error);
+      setLocalUnits(previousUnits);
+    } finally {
+      setDeletingUnitId(null);
+    }
+  };
+
   useEffect(() => {
     if (!user?.id) {
       setSubscription(null);
@@ -469,9 +542,20 @@ const Properties = () => {
           <h1>Properties</h1>
           <p>Register and monitor every unit across your portfolios.</p>
         </div>
-        <Button type="button" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Hide Form' : 'Create Unit'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={refreshingUnits}
+            aria-label="Refresh units"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={18} className={refreshingUnits ? 'animate-spin' : ''} aria-hidden="true" />
+          </button>
+          <Button type="button" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Hide Form' : 'Create Unit'}
+          </Button>
+        </div>
       </div>
 
       {subscriptionLoading ? (
@@ -561,8 +645,24 @@ const Properties = () => {
                 }`}
                 onClick={() => setSelectedUnitId(unit.id)}
               >
-                <p className="font-medium">{unit.unitNumber || 'Unit'}</p>
-                <p>Rent: {formatCurrency(unit.rentAmount)}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{unit.unitNumber || 'Unit'}</p>
+                    <p>Rent: {formatCurrency(unit.rentAmount)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDeleteUnit(unit.id);
+                    }}
+                    disabled={deletingUnitId === unit.id}
+                    aria-label="Delete unit"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-red-50 text-red-600 transition hover:border-red-200 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                </div>
                 <p>Status: {unit.status}</p>
                 <p>Houses: {unit.numberOfHouses ?? 1}</p>
               </li>

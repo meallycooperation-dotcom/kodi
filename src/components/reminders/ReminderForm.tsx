@@ -1,13 +1,18 @@
 import { FormEvent, useState } from 'react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import type { Reminder } from '../../types/reminder';
 import { insertReminder } from '../../services/reminderService';
 import useAuth from '../../hooks/useAuth';
-import useReminders from '../../hooks/useReminders';
 
-const ReminderForm = () => {
+type ReminderFormProps = {
+  onCreateOptimistic?: (reminder: Reminder) => void;
+  onCreateRollback?: (tempId: string) => void;
+  onCreateSuccess?: () => void;
+};
+
+const ReminderForm = ({ onCreateOptimistic, onCreateRollback, onCreateSuccess }: ReminderFormProps) => {
   const { user } = useAuth();
-  const { refresh } = useReminders();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -32,6 +37,19 @@ const ReminderForm = () => {
     setLoading(true);
     setStatus(null);
 
+    const newReminderId =
+      globalThis.crypto?.randomUUID?.() ?? `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticReminder: Reminder = {
+      id: newReminderId,
+      userId: user.id,
+      title: form.title,
+      message: form.message,
+      sendDate: form.sendDate,
+      status: form.reminderStatus as Reminder['status'],
+      createdAt: new Date().toISOString()
+    };
+    onCreateOptimistic?.(optimisticReminder);
+
     try {
       await insertReminder({
         userId: user.id,
@@ -48,9 +66,10 @@ const ReminderForm = () => {
         sendDate: '',
         reminderStatus: 'pending'
       });
-      await refresh(); // Refresh the reminders list
+      onCreateSuccess?.();
     } catch (error) {
       console.error(error);
+      onCreateRollback?.(newReminderId);
       setStatus('Failed to create reminder.');
     } finally {
       setLoading(false);
