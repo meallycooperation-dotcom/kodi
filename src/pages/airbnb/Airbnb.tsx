@@ -704,7 +704,7 @@ const Airbnb = () => {
                   onChange={(event) => handleTenantChange('phone', event.target.value)}
                 />
                 <Input
-                  label="Email"
+                  label="Email (optional)"
                   name="email"
                   type="email"
                   value={tenantForm.email}

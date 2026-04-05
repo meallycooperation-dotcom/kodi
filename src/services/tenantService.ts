@@ -101,6 +101,7 @@ export const insertTenant = async (payload: NewTenantInput) => {
     .insert([
       {
         user_id: payload.userId,
+        creator_id: payload.userId,
         unit_id: payload.unitId,
         house_number: payload.houseNumber ?? null,
         full_name: payload.fullName,

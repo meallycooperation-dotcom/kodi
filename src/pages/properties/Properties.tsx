@@ -361,14 +361,15 @@ const Properties = () => {
     try {
       const parsedArrears = parseFloat(tenantFormData.previousArrears);
       const arrears = Number.isNaN(parsedArrears) ? 0 : parsedArrears;
+      const email = tenantFormData.email.trim();
 
-      const createdTenant = await insertTenant({
+      await insertTenant({
         userId: user.id,
         unitId: tenantFormData.unitId,
         houseNumber: tenantFormData.houseNumber,
         fullName: tenantFormData.fullName,
         phone: tenantFormData.phone,
-        email: tenantFormData.email,
+        email: email || undefined,
         moveInDate: tenantFormData.moveInDate || undefined,
         arrears,
         status: 'active'
@@ -380,7 +381,6 @@ const Properties = () => {
         defaultRent: parseFloat(tenantFormData.defaultRent) || 0
       });
 
-      await refreshTenants();
       setTenantFormStatus('Successfully added a tenant.');
       setTenantFormData(tenantFormInitial);
       setTenantFormOpen(false);
@@ -389,8 +389,15 @@ const Properties = () => {
       const message =
         error instanceof Error ? error.message : typeof error === 'string' ? error : 'Failed to create tenant.';
       setTenantFormStatus(message);
+      return;
     } finally {
       setTenantFormLoading(false);
+    }
+
+    try {
+      await refreshTenants();
+    } catch (error) {
+      console.error('refreshTenants', error);
     }
   };
 
@@ -869,7 +876,7 @@ const Properties = () => {
                     )}
                   </label>
                   <Input
-                    label="Email"
+                    label="Email (optional)"
                     name="email"
                     type="email"
                     value={tenantFormData.email}

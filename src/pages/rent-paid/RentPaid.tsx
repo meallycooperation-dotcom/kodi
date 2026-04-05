@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import PaymentForm from '../../components/rent/PaymentForm';
 import RentTable from '../../components/rent/RentTable';
-import Button from '../../components/ui/Button';
 import usePayments from '../../hooks/usePayments';
 import useTenants from '../../hooks/useTenants';
 import useUnits from '../../hooks/useUnits';
@@ -15,13 +13,12 @@ import PageLoader from '../../components/ui/PageLoader';
 
 const RentPaid = () => {
   const { formatCurrency } = useCurrency();
-  const { payments, totalCollected } = usePayments();
+  const { payments } = usePayments();
   const { user } = useAuth();
   const { totalDue } = useArrears();
   const { units } = useUnits('all', user?.id);
   const { tenants } = useTenants();
   const { apartmentPayments, loading: apartmentPaymentsLoading } = useApartmentPayments();
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState<string | 'all'>('all');
   const [apartments, setApartments] = useState<any[]>([]);
   const [blocks, setBlocks] = useState<any[]>([]);
@@ -251,8 +248,19 @@ const RentPaid = () => {
     if (selectedBlockId === 'all' || !blockPrefix) {
       return null;
     }
-    return new Set(filteredTenants.map((tenant) => tenant.id));
-  }, [filteredTenants, selectedBlockId, blockPrefix]);
+    const ids = new Set<string>();
+    filteredTenants.forEach((tenant) => {
+      if (tenant.id) {
+        ids.add(tenant.id);
+      }
+    });
+    apartmentTenantsInBlock.forEach((tenant) => {
+      if (tenant.id) {
+        ids.add(tenant.id);
+      }
+    });
+    return ids;
+  }, [filteredTenants, selectedBlockId, blockPrefix, apartmentTenantsInBlock]);
 
   const allPayments = useMemo(() => [...payments, ...apartmentPayments], [payments, apartmentPayments]);
 
@@ -376,20 +384,7 @@ const RentPaid = () => {
               ))}
           </select>
         </label>
-        <Button type="button" onClick={() => setShowPaymentForm((v) => !v)}>
-          {showPaymentForm ? 'Hide Form' : 'Record Payment'}
-        </Button>
       </div>
-
-      {showPaymentForm && (
-        <PaymentForm
-          tenants={selectedApartmentId === 'all' ? undefined : apartmentTenantsInBlock}
-          units={unitsForDropdown}
-          apartmentId={selectedApartmentId !== 'all' ? selectedApartmentId : undefined}
-          apartmentBlockId={selectedBlockId !== 'all' ? selectedBlockId : undefined}
-          apartmentOwnerId={user?.id}
-        />
-      )}
 
       <RentTable payments={filteredPayments} />
     </section>
