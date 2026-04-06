@@ -186,12 +186,12 @@ const PaymentForm = ({
   return (
     <form className="payment-form space-y-3" onSubmit={handleSubmit}>
       {clientInfo && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm space-y-0.5">
+        <div className="client-info-panel text-sm space-y-0.5">
           <p className="font-semibold text-gray-900">{clientInfo.fullName}</p>
-          {clientInfo.phone && <p>Phone: {clientInfo.phone}</p>}
-          {clientInfo.email && <p>Email: {clientInfo.email}</p>}
-          {clientInfo.unitNumber && <p>Unit: {clientInfo.unitNumber}</p>}
-          {clientInfo.houseNumber && <p>House: {clientInfo.houseNumber}</p>}
+          {clientInfo.phone && <p className="text-gray-500">Phone: {clientInfo.phone}</p>}
+          {clientInfo.email && <p className="text-gray-500">Email: {clientInfo.email}</p>}
+          {clientInfo.unitNumber && <p className="text-gray-500">Unit: {clientInfo.unitNumber}</p>}
+          {clientInfo.houseNumber && <p className="text-gray-500">House: {clientInfo.houseNumber}</p>}
         </div>
       )}
       <label className="input-field">

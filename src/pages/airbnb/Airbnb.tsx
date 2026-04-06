@@ -619,8 +619,8 @@ const Airbnb = () => {
                   role="button"
                   tabIndex={0}
                   aria-pressed={isSelected}
-                  className={`p-3 border rounded-lg shadow-sm bg-white cursor-pointer focus:outline-none focus:ring focus:ring-blue-200 ${
-                    isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                  className={`listing-card focus:outline-none focus:ring focus:ring-blue-200 ${
+                    isSelected ? 'listing-card--selected' : ''
                   }`}
                   onClick={() => toggleListingSelection(listing.id)}
                   onKeyDown={(event) => {

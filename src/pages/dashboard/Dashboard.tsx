@@ -385,17 +385,17 @@ const Dashboard = () => {
       </div>
       <Card title="Financial snapshot" className="space-y-0">
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="snapshot-panel">
             <p className="text-sm text-gray-500">Total Rent Due</p>
             <p className="text-2xl font-semibold">{formatCurrency(totalExpectedRent)}</p>
             <p className="text-xs text-gray-400">All tenants, all time</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="snapshot-panel">
             <p className="text-sm text-gray-500">Total Paid</p>
             <p className="text-2xl font-semibold">{formatCurrency(totalPaid)}</p>
             <p className="text-xs text-gray-400">Cumulative payments</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="snapshot-panel">
             <p className="text-sm text-gray-500">Outstanding Balance</p>
             <p className="text-2xl font-semibold">{formatCurrency(totalDue)}</p>
             <p className="text-xs text-gray-400">Current arrears</p>

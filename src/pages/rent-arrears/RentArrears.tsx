@@ -117,17 +117,17 @@ const RentArrears = () => {
         </label>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="snapshot-panel">
           <p className="text-sm text-gray-500">Total Rent Due</p>
           <p className="text-2xl font-semibold">{formatCurrency(filteredTotalExpected)}</p>
           <p className="text-xs text-gray-400">Includes all tenants in the current filter</p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="snapshot-panel">
           <p className="text-sm text-gray-500">Total Paid</p>
           <p className="text-2xl font-semibold">{formatCurrency(filteredTotalPaid)}</p>
           <p className="text-xs text-gray-400">Cumulative payments recorded so far</p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="snapshot-panel">
           <p className="text-sm text-gray-500">Outstanding Balance</p>
           <p className="text-2xl font-semibold">{formatCurrency(filteredTotalDue)}</p>
           <p className="text-xs text-gray-400">Sum of tenant arrears</p>
@@ -171,12 +171,9 @@ const RentArrears = () => {
           {filteredTenantBalances.length ? (
             <ul className="space-y-3">
               {filteredTenantBalances.map((balance) => (
-                <li
-                  key={balance.tenantId}
-                  className="flex items-center justify-between rounded-lg border border-dashed border-gray-200 bg-white p-4"
-                >
+                <li key={balance.tenantId} className="summary-row">
                   <div>
-                    <p className="font-semibold">{balance.tenantName}</p>
+                  <p className="font-semibold">{balance.tenantName}</p>
                     <p className="text-sm text-gray-500">
                       {balance.monthsStayed
                         ? `${balance.monthsStayed} month${balance.monthsStayed === 1 ? '' : 's'} of tenancy`

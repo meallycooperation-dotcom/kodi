@@ -5,11 +5,13 @@ import useAuth from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { changePassword } from '../../services/profileService';
 import { useCurrency } from '../../context/currency';
+import { useTheme } from '../../context/theme';
 
 const Settings = () => {
   const { user, loading, signOut } = useAuth();
   const { selectedCurrency, setSelectedCurrency, availableCurrencies, loading: currencyLoading } =
     useCurrency();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -123,6 +125,29 @@ const Settings = () => {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="card space-y-3">
+            <div className="flex items-center justify-between">
+              <h2>Appearance</h2>
+              <Button variant="ghost" onClick={toggleTheme}>
+                {theme === 'dark' ? 'Use light mode' : 'Use dark mode'}
+              </Button>
+            </div>
+            <p className="text-sm text-gray-500">
+              Switch the dashboard between light and dark color schemes.
+            </p>
+            <label className="theme-switch">
+              <input
+                type="checkbox"
+                checked={theme === 'dark'}
+                onChange={toggleTheme}
+                aria-label="Enable dark mode"
+              />
+              <span className="text-sm font-medium">
+                {theme === 'dark' ? 'Dark mode enabled' : 'Dark mode disabled'}
+              </span>
+            </label>
           </div>
 
           <div className="card">
