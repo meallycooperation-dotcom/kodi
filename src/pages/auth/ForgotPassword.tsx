@@ -31,8 +31,8 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
+    <div className="auth-layout">
+      <form onSubmit={handleSubmit} className="auth-form">
         <h2 className="text-2xl font-bold mb-6 text-center">Forgot Password</h2>
 
         <input
@@ -41,22 +41,19 @@ const ForgotPassword = () => {
           placeholder="Enter your email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-4 p-3 border rounded-lg"
           required
         />
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-purple-600 text-white p-3 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading}>
           {loading ? 'Sending...' : 'Send reset link'}
         </button>
 
         {success && <p className="text-green-600 mt-4 text-center">{success}</p>}
 
-        <div className="text-center mt-4 text-sm">
-          <a href="/auth/login" className="text-purple-600 font-semibold">Back to login</a>
+        <div className="auth-links">
+          <p>
+            <a href="/auth/login" className="auth-link">Back to login</a>
+          </p>
         </div>
       </form>
     </div>

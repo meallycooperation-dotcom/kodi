@@ -79,14 +79,9 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md"
-      >
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          Create Kodi Account
-        </h2>
+    <div className="auth-layout">
+      <form onSubmit={handleSubmit} className="auth-form">
+        <h2 className="text-2xl font-bold mb-6 text-center">Create Kodi Account</h2>
 
         {/* FULL NAME */}
         <input
@@ -138,24 +133,17 @@ const Signup = () => {
           placeholder="Confirm Password"
           value={form.confirmPassword}
           onChange={handleChange}
-          className="w-full mb-6 p-3 border rounded-lg"
           required
         />
 
-        {/* SUBMIT */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-purple-600 text-white p-3 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={loading}>
           {loading ? "Creating..." : "Sign Up"}
         </button>
 
-        {/* ALREADY HAVE ACCOUNT */}
-        <div className="text-center mt-4 text-sm">
+        <div className="auth-links">
           <p>
             Already have an account?{' '}
-            <a href="/auth/login" className="text-purple-600 font-semibold">
+            <a href="/auth/login" className="auth-link">
               Login
             </a>
           </p>

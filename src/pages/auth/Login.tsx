@@ -1,21 +1,15 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "../../lib/supabaseClient";
-import "../../styles/index.css";
-
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabaseClient';
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
-
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-  });
+  const [form, setForm] = useState({ email: '', password: '' });
 
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
-        window.location.href = "/dashboard";
+        window.location.href = '/dashboard';
       }
     };
 
@@ -28,23 +22,14 @@ const Login = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       setLoading(true);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: form.email,
-        password: form.password,
+        password: form.password
       });
-
       if (error) throw error;
-
-      // ✅ success
-      // alert("Login successful 🎉");
-
-      // 👉 redirect to dashboard
-      window.location.href = "/dashboard";
-
+      window.location.href = '/dashboard';
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -53,56 +38,37 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <form
-        onSubmit={handleLogin}
-        className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md"
-      >
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          Login to Kodi
-        </h2>
-
-        {/* EMAIL */}
+    <div className="auth-layout">
+      <form onSubmit={handleLogin} className="auth-form">
+        <h2 className="text-2xl font-bold mb-6 text-center">Login to Kodi</h2>
         <input
           type="email"
           name="email"
           placeholder="Email"
           value={form.email}
           onChange={handleChange}
-          className="w-full mb-4 p-3 border rounded-lg"
           required
         />
-
-        {/* PASSWORD */}
         <input
           type="password"
           name="password"
           placeholder="Password"
           value={form.password}
           onChange={handleChange}
-          className="w-full mb-6 p-3 border rounded-lg"
           required
         />
-
-        {/* LOGIN BUTTON */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-purple-600 text-white p-3 rounded-lg font-semibold hover:bg-purple-700 disabled:opacity-50"
-        >
-          {loading ? "Logging in..." : "Login"}
+        <button type="submit" disabled={loading}>
+          {loading ? 'Logging in...' : 'Login'}
         </button>
-
-        {/* EXTRA LINKS */}
-        <div className="text-center mt-4 text-sm space-y-2">
+        <div className="auth-links">
           <p>
-            <a href="/auth/forgot-password" className="text-purple-600 font-semibold">
+            <a href="/auth/forgot-password" className="auth-link">
               Forgot password?
             </a>
           </p>
           <p>
-            Don’t have an account?{" "}
-            <a href="/auth/signup" className="text-purple-600 font-semibold">
+            Don’t have an account?{' '}
+            <a href="/auth/signup" className="auth-link">
               Sign up
             </a>
           </p>
@@ -113,4 +79,3 @@ const Login = () => {
 };
 
 export default Login;
-
