@@ -3,29 +3,36 @@ import { Routes, Route, useNavigate } from 'react-router-dom';
 import routes from './routes';
 import { AppProviders } from './providers';
 import { MonthlyRentResetProvider } from './MonthlyRentResetProvider';
-import Splash from '../pages/auth/Splash';
+import LandingPage from '../pages/landing/LandingPage';
 
 const App = () => {
-  const [showSplash, setShowSplash] = useState(false);
+  const [showLanding, setShowLanding] = useState(false);
   const [ready, setReady] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hasSeenSplash = localStorage.getItem('hasSeenSplash') === 'true';
-    setShowSplash(!hasSeenSplash);
+    const hasSeenLanding = localStorage.getItem('hasSeenLanding') === 'true';
+    setShowLanding(!hasSeenLanding);
     setReady(true);
   }, []);
 
   useEffect(() => {
-    if (ready && !showSplash && window.location.pathname === '/') {
+    if (ready && !showLanding && window.location.pathname === '/') {
       navigate('/auth/login', { replace: true });
     }
-  }, [ready, showSplash, navigate]);
+  }, [ready, showLanding, navigate]);
 
   if (!ready) return null;
 
-  if (showSplash) {
-    return <Splash onFinish={() => setShowSplash(false)} />;
+  if (showLanding) {
+    return (
+      <LandingPage
+        onSeen={() => {
+          localStorage.setItem('hasSeenLanding', 'true');
+          setShowLanding(false);
+        }}
+      />
+    );
   }
 
   return (
