@@ -14,6 +14,8 @@ import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantServi
 import {
   fetchApartmentPaidView,
   fetchApartmentArrearsView,
+  getCachedApartmentPaidView,
+  getCachedApartmentArrearsView,
   type ApartmentPaidViewRecord,
   type ApartmentArrearsViewRecord
 } from '../../services/paymentService';
@@ -76,6 +78,19 @@ const Analytics = () => {
           setApartmentArrearsRecords([]);
         }
         return;
+      }
+      try {
+        const [cachedPaid, cachedArrears] = await Promise.all([
+          getCachedApartmentPaidView(user.id),
+          getCachedApartmentArrearsView(tenantIds)
+        ]);
+        if (!mounted) {
+          return;
+        }
+        setApartmentPaidRecords(cachedPaid);
+        setApartmentArrearsRecords(cachedArrears);
+      } catch (error) {
+        console.error('loadApartmentAnalytics cache error', error);
       }
       try {
         const [paidRes, arrearsRes] = await Promise.all([

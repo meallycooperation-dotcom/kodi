@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { Reminder } from '../types/reminder';
 
 export type NewReminderInput = Omit<Reminder, 'id' | 'createdAt'>;
@@ -30,6 +31,10 @@ const mapReminderRow = (row: ReminderRow): Reminder => ({
   createdAt: row.created_at
 });
 
+const reminderCacheKey = (userId?: string) => buildCacheKey('reminders', userId ?? 'all');
+
+export const getCachedReminders = async (userId?: string) => readCache<Reminder[]>(reminderCacheKey(userId), []);
+
 export const fetchReminders = async (userId?: string) => {
   if (!userId) {
     return [];
@@ -42,7 +47,9 @@ export const fetchReminders = async (userId?: string) => {
     .order('send_date', { ascending: false });
 
   handleError(error);
-  return (data ?? []).map((row) => mapReminderRow(row as ReminderRow));
+  const reminders = (data ?? []).map((row) => mapReminderRow(row as ReminderRow));
+  await writeCache(reminderCacheKey(userId), reminders);
+  return reminders;
 };
 
 export const insertReminder = async (payload: NewReminderInput) => {

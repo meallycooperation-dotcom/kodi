@@ -1,16 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Payment } from '../types/payment';
 import useAuth from './useAuth';
-import { insertPayment, fetchPayments } from '../services/paymentService';
+import { insertPayment, fetchPayments, getCachedPayments } from '../services/paymentService';
+import { useRealtimeRefresh } from './useRealtimeRefresh';
 
 const usePayments = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadPayments = async (userId?: string) => {
+  const loadPayments = useCallback(async (userId?: string) => {
     if (!userId) {
       setPayments([]);
+      setLoading(false);
       return;
+    }
+
+    setLoading(true);
+    try {
+      const cached = await getCachedPayments(userId);
+      setPayments(cached);
+    } catch (error) {
+      console.error('usePayments cache error', error);
     }
 
     try {
@@ -30,25 +40,28 @@ const usePayments = () => {
       setPayments(mapped);
     } catch (error) {
       console.error('usePayments error', error);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
   const { user } = useAuth();
 
   useEffect(() => {
-    let mounted = true;
-    const run = async () => {
-      setLoading(true);
-      await loadPayments(user?.id);
-      if (!mounted) setPayments([]);
-      if (mounted) setLoading(false);
-    };
-    run();
+    void loadPayments(user?.id);
+  }, [loadPayments, user?.id]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [user?.id]);
+  useRealtimeRefresh({
+    enabled: Boolean(user?.id),
+    channelName: `payments:${user?.id ?? 'guest'}`,
+    tables: [
+      {
+        table: 'payments',
+        filter: user?.id ? `creator_id=eq.${user.id}` : undefined
+      }
+    ],
+    onChange: () => loadPayments(user?.id)
+  });
 
   const totalCollected = payments.reduce((sum, payment) => sum + payment.amountPaid, 0);
   const tenantsPaidCount = new Set(payments.map((payment) => payment.tenantId)).size;

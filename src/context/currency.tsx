@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { clientStorage } from '../lib/clientStorage';
 
 const STORAGE_KEY = 'kodi_selected_currency';
 const DEFAULT_CURRENCY = 'KES';
@@ -24,19 +25,37 @@ const normalizeCurrency = (value?: string) => (value ? value.trim().toUpperCase(
 export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
   const [rates, setRates] = useState<Record<string, number>>({ [BASE_CURRENCY]: 1, [API_BASE]: 1 });
   const [loading, setLoading] = useState(true);
-  const [selectedCurrency, setSelectedCurrency] = useState(() => {
-    if (typeof window === 'undefined') {
-      return DEFAULT_CURRENCY;
-    }
-    return normalizeCurrency(window.localStorage.getItem(STORAGE_KEY) ?? DEFAULT_CURRENCY);
-  });
+  const [selectedCurrency, setSelectedCurrency] = useState(DEFAULT_CURRENCY);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    let active = true;
+
+    const loadCurrency = async () => {
+      const stored = await clientStorage.getString(STORAGE_KEY, DEFAULT_CURRENCY);
+
+      if (!active) {
+        return;
+      }
+
+      setSelectedCurrency(normalizeCurrency(stored));
+      setHydrated(true);
+    };
+
+    void loadCurrency();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) {
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, selectedCurrency);
-  }, [selectedCurrency]);
+
+    void clientStorage.setString(STORAGE_KEY, selectedCurrency);
+  }, [selectedCurrency, hydrated]);
 
   useEffect(() => {
     if (!API_URL) {
@@ -91,23 +110,19 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const convertToSelected = useCallback(
-  (value?: number | null) => {
-    const amount = typeof value === 'number' ? value : 0;
-    
-    // 1. Get the rates from your state
-    const kshRate = rates[BASE_CURRENCY]; // e.g., 130
-    const targetRate = rates[selectedCurrency]; // e.g., 0.75 for GBP
+    (value?: number | null) => {
+      const amount = typeof value === 'number' ? value : 0;
+      const kshRate = rates[BASE_CURRENCY];
+      const targetRate = rates[selectedCurrency];
 
-    // 2. Safety check: If rates aren't loaded yet, return original amount
-    if (!kshRate || !targetRate) {
-      return amount; 
-    }
+      if (!kshRate || !targetRate) {
+        return amount;
+      }
 
-    // 3. The Bridge Math: (Input KES / KES per USD) * Target per USD
-    return (amount / kshRate) * targetRate;
-  },
-  [rates, selectedCurrency]
-);
+      return (amount / kshRate) * targetRate;
+    },
+    [rates, selectedCurrency]
+  );
 
   const formatter = useMemo(() => {
     try {

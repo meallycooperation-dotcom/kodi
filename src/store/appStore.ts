@@ -1,7 +1,7 @@
 const useAppStore = () => ({
   theme: 'light',
   setTheme: (value: 'light' | 'dark') => {
-    console.log('setTheme called with', value);
+    void value;
   }
 });
 

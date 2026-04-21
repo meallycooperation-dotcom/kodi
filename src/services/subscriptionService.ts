@@ -1,5 +1,11 @@
 import { supabase } from '../lib/supabaseClient';
 
+const PLAN_PRICE_MAP: Record<'basic' | 'standard' | 'premium', number> = {
+  basic: 1499,
+  standard: 10,
+  premium: 4499
+};
+
 export type NewSubscriptionPayload = {
   userId: string;
   planName: 'basic' | 'standard' | 'premium';
@@ -78,19 +84,8 @@ export const fetchSubscriptionForUser = async (userId: string): Promise<Subscrip
   return data as SubscriptionRow | null;
 };
 
-// Fetch the price for a given plan from the plans catalog (if available)
+// The schema does not include a plans catalog table, so use the known plan pricing
+// from the subscription flow instead of querying a missing table.
 export const fetchPlanPrice = async (planName: 'basic' | 'standard' | 'premium'): Promise<number> => {
-  const { data, error } = await supabase
-    .from('plans')
-    .select('price')
-    .eq('name', planName)
-    .maybeSingle();
-
-  if (error) {
-    console.error('fetchPlanPrice', error);
-    throw error;
-  }
-
-  const price = (data as any)?.price;
-  return typeof price === 'number' ? price : 0;
+  return PLAN_PRICE_MAP[planName];
 };

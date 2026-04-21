@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { UserSession } from '../types/user';
 
 type ProfileRow = {
@@ -15,6 +16,12 @@ const mapProfile = (profile: ProfileRow): UserSession => ({
   createdAt: profile.created_at ?? new Date().toISOString()
 });
 
+const profileCacheKey = (id: string) => buildCacheKey('profile', id);
+
+export const getCachedProfileById = async (id: string): Promise<UserSession | null> => {
+  return readCache<UserSession | null>(profileCacheKey(id), null);
+};
+
 export const fetchProfileById = async (id: string): Promise<UserSession | null> => {
   const { data, error } = await supabase
     .from('profiles')
@@ -27,7 +34,9 @@ export const fetchProfileById = async (id: string): Promise<UserSession | null> 
     return null;
   }
 
-  return data ? mapProfile(data) : null;
+  const profile = data ? mapProfile(data) : null;
+  await writeCache(profileCacheKey(id), profile);
+  return profile;
 };
 
 export const changePassword = async (newPassword: string): Promise<{ success: boolean; error?: string }> => {

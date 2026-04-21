@@ -2,8 +2,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import { insertPayment, insertApartmentPayment } from '../../services/paymentService';
-import { fetchUnits } from '../../services/unitService';
-import { fetchTenants } from '../../services/tenantService';
+import { fetchUnits, getCachedUnits } from '../../services/unitService';
+import { fetchTenants, getCachedTenants } from '../../services/tenantService';
 import type { Unit } from '../../types/unit';
 import type { Tenant } from '../../types/tenant';
 import useAuth from '../../hooks/useAuth';
@@ -82,6 +82,12 @@ const PaymentForm = ({
         return;
       }
       try {
+        const cachedUnits = await getCachedUnits(undefined, 'all', user.id);
+        setUnits(cachedUnits);
+      } catch (error) {
+        console.error('Failed to load cached units', error);
+      }
+      try {
         const unitsData = await fetchUnits(undefined, 'all', user.id);
         setUnits(unitsData);
       } catch (error) {
@@ -102,6 +108,12 @@ const PaymentForm = ({
       if (!user?.id) {
         setTenants([]);
         return;
+      }
+      try {
+        const cachedTenants = await getCachedTenants(user.id);
+        setTenants(cachedTenants);
+      } catch (error) {
+        console.error('Failed to load cached tenants', error);
       }
       try {
         const tenantsData = await fetchTenants(user.id);

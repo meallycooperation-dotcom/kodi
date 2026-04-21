@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { fetchProfileById } from '../services/profileService';
+import { fetchProfileById, getCachedProfileById } from '../services/profileService';
 import type { UserSession } from '../types/user';
 
 const useAuth = () => {
@@ -20,11 +20,21 @@ const useAuth = () => {
           return;
         }
 
-        const profile = await fetchProfileById(session.user.id);
+        const cachedProfile = await getCachedProfileById(session.user.id);
         if (mounted) {
-          setUser(profile);
+          setUser(cachedProfile);
           setLoading(false);
         }
+
+        fetchProfileById(session.user.id)
+          .then((profile) => {
+            if (mounted) {
+              setUser(profile);
+            }
+          })
+          .catch((error) => {
+            console.error('useAuth.initialize refresh', error);
+          });
       } catch (error) {
         console.error('useAuth.initialize', error);
         if (mounted) setLoading(false);
@@ -36,6 +46,14 @@ const useAuth = () => {
         setUser(null);
         return;
       }
+
+      getCachedProfileById(session.user.id)
+        .then((profile) => {
+          if (profile) setUser(profile);
+        })
+        .catch((error) => {
+          console.error('useAuth auth change cache', error);
+        });
 
       fetchProfileById(session.user.id)
         .then((profile) => {

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { Payment } from '../types/payment';
 
 export type NewPaymentInput = Omit<Payment, 'id' | 'createdAt' | 'tenantName'>;
@@ -8,6 +9,37 @@ const handleError = (error: Error | null) => {
     console.error(error);
     throw error;
   }
+};
+
+const isMissingRelationError = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const typedError = error as { code?: string; message?: string };
+  return (
+    typedError.code === 'PGRST205' ||
+    typedError.message?.includes("Could not find the table 'public.") === true ||
+    typedError.message?.includes('schema cache') === true
+  );
+};
+
+const monthsBetween = (startDate?: string | null) => {
+  if (!startDate) {
+    return 1;
+  }
+
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) {
+    return 1;
+  }
+
+  const now = new Date();
+  const months =
+    (now.getFullYear() - start.getFullYear()) * 12 +
+    (now.getMonth() - start.getMonth()) +
+    1;
+  return Math.max(1, months);
 };
 
 const monthOnlyPattern = /^\d{4}-\d{2}$/;
@@ -109,6 +141,29 @@ const mapApartmentPaymentRow = (row: ApartmentPaymentRow): Payment => ({
   tenantName: row.apartment_tenants?.full_name ?? undefined
 });
 
+const paymentsCacheKey = (creatorId?: string, limit?: number) =>
+  buildCacheKey('payments', creatorId ?? 'all', limit ?? 'all');
+
+const apartmentPaymentsCacheKey = (creatorId?: string, limit?: number) =>
+  buildCacheKey('apartment-payments', creatorId ?? 'all', limit ?? 'all');
+
+const apartmentPaidViewCacheKey = (userId?: string) => buildCacheKey('apartment-paid-view', userId ?? 'all');
+
+const apartmentArrearsViewCacheKey = (tenantIds?: string[]) =>
+  buildCacheKey('apartment-arrears-view', ...(tenantIds ?? []).slice().sort());
+
+export const getCachedPayments = async (creatorId?: string, limit?: number) =>
+  readCache<Payment[]>(paymentsCacheKey(creatorId, limit), []);
+
+export const getCachedApartmentPayments = async (creatorId?: string, limit?: number) =>
+  readCache<Payment[]>(apartmentPaymentsCacheKey(creatorId, limit), []);
+
+export const getCachedApartmentPaidView = async (userId?: string) =>
+  readCache<ApartmentPaidViewRecord[]>(apartmentPaidViewCacheKey(userId), []);
+
+export const getCachedApartmentArrearsView = async (tenantIds?: string[]) =>
+  readCache<ApartmentArrearsViewRecord[]>(apartmentArrearsViewCacheKey(tenantIds), []);
+
 export const fetchPayments = async (creatorId?: string, limit?: number) => {
   const regularQuery = supabase
     .from('payments')
@@ -125,7 +180,9 @@ export const fetchPayments = async (creatorId?: string, limit?: number) => {
 
   const { data, error } = await regularQuery;
   handleError(error);
-  return (data ?? []).map((row) => mapPaymentWithTenantRow(row as PaymentWithTenantRow));
+  const payments = (data ?? []).map((row) => mapPaymentWithTenantRow(row as PaymentWithTenantRow));
+  await writeCache(paymentsCacheKey(creatorId, limit), payments);
+  return payments;
 };
 
 export const fetchApartmentPayments = async (creatorId?: string, limit?: number) => {
@@ -144,7 +201,9 @@ export const fetchApartmentPayments = async (creatorId?: string, limit?: number)
 
   const { data, error } = await apartmentQuery;
   handleError(error);
-  return (data ?? []).map((row) => mapApartmentPaymentRow(row as ApartmentPaymentRow));
+  const payments = (data ?? []).map((row) => mapApartmentPaymentRow(row as ApartmentPaymentRow));
+  await writeCache(apartmentPaymentsCacheKey(creatorId, limit), payments);
+  return payments;
 };
 
 export const paymentExistsForMonth = async (tenantId: string, monthPaidFor: string): Promise<boolean> => {
@@ -236,17 +295,76 @@ export const fetchApartmentPaidView = async (userId?: string) => {
 
   const { data, error } = await query;
 
-  handleError(error);
-  return (data ?? []).map<ApartmentPaidViewRecord>((row) => ({
-    tenantId: row.tenant_id,
-    tenantName: row.full_name ?? undefined,
-    houseNumber: row.house_number ?? undefined,
-    blockName: row.block_name ?? undefined,
-    apartmentName: row.apartment_name ?? undefined,
-    amountPaid: Number(row.total_paid ?? 0),
-    month: row.month ?? undefined,
-    phoneNumber: row.phone_number ?? undefined
-  }));
+  if (!error) {
+    const records = (data ?? []).map<ApartmentPaidViewRecord>((row) => ({
+      tenantId: row.tenant_id,
+      tenantName: row.full_name ?? undefined,
+      houseNumber: row.house_number ?? undefined,
+      blockName: row.block_name ?? undefined,
+      apartmentName: row.apartment_name ?? undefined,
+      amountPaid: Number(row.total_paid ?? 0),
+      month: row.month ?? undefined,
+      phoneNumber: row.phone_number ?? undefined
+    }));
+    await writeCache(apartmentPaidViewCacheKey(userId), records);
+    return records;
+  }
+
+  if (!isMissingRelationError(error)) {
+    handleError(error);
+  }
+
+  const [tenantResponse, paymentResponse] = await Promise.all([
+    supabase
+      .from('apartment_tenants')
+      .select(
+        'id, full_name, phone_number, house_id, houses!left(house_number, block_id, blocks!left(block_name, apartment_id, apartments!left(name)))'
+      )
+      .eq('user_id', userId ?? ''),
+    supabase
+      .from('apartment_payments')
+      .select('tenant_id, amount_paid, payment_date, month_paid_for')
+      .eq('creator_id', userId ?? '')
+  ]);
+
+  handleError(tenantResponse.error);
+  handleError(paymentResponse.error);
+
+  const tenantMap = new Map(
+    (tenantResponse.data ?? []).map((row: any) => [
+      row.id,
+      {
+        tenantName: row.full_name ?? undefined,
+        phoneNumber: row.phone_number ?? undefined,
+        houseNumber: row.houses?.house_number ?? undefined,
+        blockName: row.houses?.blocks?.block_name ?? undefined,
+        apartmentName: row.houses?.blocks?.apartments?.name ?? undefined
+      }
+    ])
+  );
+
+  const records = (paymentResponse.data ?? []).map<ApartmentPaidViewRecord>((row: any) => {
+    const tenant = tenantMap.get(row.tenant_id) ?? {
+      tenantName: undefined,
+      phoneNumber: undefined,
+      houseNumber: undefined,
+      blockName: undefined,
+      apartmentName: undefined
+    };
+    return {
+      tenantId: row.tenant_id,
+      tenantName: tenant.tenantName,
+      phoneNumber: tenant.phoneNumber,
+      houseNumber: tenant.houseNumber,
+      blockName: tenant.blockName,
+      apartmentName: tenant.apartmentName,
+      amountPaid: Number(row.amount_paid ?? 0),
+      month: row.month_paid_for ? String(row.month_paid_for).slice(0, 7) : undefined
+    };
+  });
+
+  await writeCache(apartmentPaidViewCacheKey(userId), records);
+  return records;
 };
 
 export type ApartmentArrearsViewRow = {
@@ -305,36 +423,93 @@ export const fetchApartmentArrearsView = async (tenantIds?: string[]) => {
     .select('id, arrears')
     .in('id', tenantIds);
 
-  handleError(viewResponse.error);
-  handleError(tenantResponse.error);
+  if (!viewResponse.error && !tenantResponse.error) {
+    const tenantArrearsMap = new Map(
+      (tenantResponse.data ?? []).map((tenantRow: ApartmentTenantArrearsRow) => [
+        tenantRow.id,
+        Number(tenantRow.arrears ?? 0)
+      ])
+    );
 
-  const tenantArrearsMap = new Map(
-    (tenantResponse.data ?? []).map((tenantRow: ApartmentTenantArrearsRow) => [
-      tenantRow.id,
-      Number(tenantRow.arrears ?? 0)
-    ])
-  );
+    const records = (viewResponse.data ?? []).map<ApartmentArrearsViewRecord>((row) => {
+      const baseBalance = Number(row.balance ?? 0);
+      const previousArrears = tenantArrearsMap.get(row.tenant_id) ?? 0;
+      const balance = baseBalance + previousArrears;
+      return {
+        userId: row.user_id,
+        tenantId: row.tenant_id,
+        tenantName: row.full_name,
+        phoneNumber: row.phone_number ?? undefined,
+        houseId: row.house_id,
+        houseNumber: row.house_number,
+        rentAmount: Number(row.rent_amount ?? 0),
+        blockName: row.block_name,
+        apartmentName: row.apartment_name,
+        monthsStayed: Number(row.months_stayed ?? 0) || undefined,
+        totalExpectedRent: Number(row.total_expected_rent ?? 0),
+        totalPaid: Number(row.total_paid ?? 0),
+        balance,
+        previousArrears,
+        status: balance <= 0 ? 'paid' : 'unpaid'
+      };
+    });
+    await writeCache(apartmentArrearsViewCacheKey(tenantIds), records);
+    return records;
+  }
 
-  return (viewResponse.data ?? []).map<ApartmentArrearsViewRecord>((row) => {
-    const baseBalance = Number(row.balance ?? 0);
-    const previousArrears = tenantArrearsMap.get(row.tenant_id) ?? 0;
-    const balance = baseBalance + previousArrears;
+  if (!isMissingRelationError(viewResponse.error) && !isMissingRelationError(tenantResponse.error)) {
+    handleError(viewResponse.error);
+    handleError(tenantResponse.error);
+  }
+
+  const [tenantRowsResponse, paymentRowsResponse] = await Promise.all([
+    supabase
+      .from('apartment_tenants')
+      .select(
+        'id, user_id, house_id, full_name, phone_number, move_in_date, arrears, houses!left(house_number, rent_amount, block_id, blocks!left(block_name, price, apartment_id, apartments!left(name)))'
+      )
+      .in('id', tenantIds),
+    supabase
+      .from('apartment_payments')
+      .select('tenant_id, amount_paid')
+      .in('tenant_id', tenantIds)
+  ]);
+
+  handleError(tenantRowsResponse.error);
+  handleError(paymentRowsResponse.error);
+
+  const paymentMap = new Map<string, number>();
+  (paymentRowsResponse.data ?? []).forEach((row: any) => {
+    paymentMap.set(row.tenant_id, (paymentMap.get(row.tenant_id) ?? 0) + Number(row.amount_paid ?? 0));
+  });
+
+  const records = (tenantRowsResponse.data ?? []).map<ApartmentArrearsViewRecord>((row: any) => {
+    const rentAmount = Number(row.houses?.rent_amount ?? row.houses?.blocks?.price ?? 0);
+    const monthsStayed = monthsBetween(row.move_in_date);
+    const totalExpectedRent = rentAmount * monthsStayed;
+    const totalPaid = paymentMap.get(row.id) ?? 0;
+    const previousArrears = Number(row.arrears ?? 0);
+    const balance = Math.max(0, totalExpectedRent - totalPaid + previousArrears);
+
     return {
       userId: row.user_id,
-      tenantId: row.tenant_id,
-      tenantName: row.full_name,
+      tenantId: row.id,
+      tenantName: row.full_name ?? '',
       phoneNumber: row.phone_number ?? undefined,
       houseId: row.house_id,
-      houseNumber: row.house_number,
-      rentAmount: Number(row.rent_amount ?? 0),
-      blockName: row.block_name,
-      apartmentName: row.apartment_name,
-      monthsStayed: Number(row.months_stayed ?? 0) || undefined,
-      totalExpectedRent: Number(row.total_expected_rent ?? 0),
-      totalPaid: Number(row.total_paid ?? 0),
+      houseNumber: row.houses?.house_number ?? '',
+      rentAmount,
+      blockName: row.houses?.blocks?.block_name ?? '',
+      apartmentName: row.houses?.blocks?.apartments?.name ?? '',
+      monthsStayed,
+      totalExpectedRent,
+      totalPaid,
       balance,
       previousArrears,
       status: balance <= 0 ? 'paid' : 'unpaid'
     };
   });
+
+  await writeCache(apartmentArrearsViewCacheKey(tenantIds), records);
+  return records;
 };

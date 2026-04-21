@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Arrear, TenantArrearBalance } from '../types/arrears';
-import { fetchRentArrearsView } from '../services/viewService';
+import { fetchRentArrearsView, getCachedRentArrearsView } from '../services/viewService';
 import {
   fetchApartmentArrearsView,
   fetchApartmentPaidView,
+  getCachedApartmentArrearsView,
+  getCachedApartmentPaidView,
   type ApartmentArrearsViewRecord,
   type ApartmentPaidViewRecord
 } from '../services/paymentService';
-import { fetchTenants } from '../services/tenantService';
+import { fetchTenants, getCachedTenants } from '../services/tenantService';
 import useAuth from './useAuth';
 import { isUuid } from '../utils/uuid';
+import { useRealtimeRefresh } from './useRealtimeRefresh';
 
 const useArrears = () => {
   const { user } = useAuth();
@@ -33,15 +36,12 @@ const useArrears = () => {
       setIsLoading(true);
     }
 
-    try {
-      const tenantRecords = await fetchTenants(user.id);
-      const tenantIds = tenantRecords.map((tenant) => tenant.id).filter(isUuid);
-      const [arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords] = await Promise.all([
-        fetchRentArrearsView(user.id),
-        fetchApartmentArrearsView(tenantIds),
-        fetchApartmentPaidView(user.id)
-      ]);
-
+    const buildState = (
+      tenantRecords: Awaited<ReturnType<typeof fetchTenants>>,
+      arrearsRecords: Awaited<ReturnType<typeof fetchRentArrearsView>>,
+      apartmentArrearsRecords: ApartmentArrearsViewRecord[],
+      apartmentPaidRecords: ApartmentPaidViewRecord[]
+    ) => {
       const uniqueArrearsRecords = Array.from(
         new Map(arrearsRecords.map((record) => [record.tenant_id, record])).values()
       );
@@ -137,6 +137,32 @@ const useArrears = () => {
         setArrears(combined);
         setTenantBalances(balances);
       }
+    };
+
+    try {
+      const tenantRecords = await getCachedTenants(user.id);
+      const tenantIds = tenantRecords.map((tenant) => tenant.id).filter(isUuid);
+      const [arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords] = await Promise.all([
+        getCachedRentArrearsView(user.id),
+        getCachedApartmentArrearsView(tenantIds),
+        getCachedApartmentPaidView(user.id)
+      ]);
+
+      buildState(tenantRecords, arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords);
+    } catch (error) {
+      console.error('useArrears cache error', error);
+    }
+
+    try {
+      const tenantRecords = await fetchTenants(user.id);
+      const tenantIds = tenantRecords.map((tenant) => tenant.id).filter(isUuid);
+      const [arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords] = await Promise.all([
+        fetchRentArrearsView(user.id),
+        fetchApartmentArrearsView(tenantIds),
+        fetchApartmentPaidView(user.id)
+      ]);
+
+      buildState(tenantRecords, arrearsRecords, apartmentArrearsRecords, apartmentPaidRecords);
     } catch (error) {
       console.error('useArrears error', error);
     } finally {
@@ -167,6 +193,35 @@ const useArrears = () => {
     window.addEventListener('apartment-payment-recorded', handler);
     return () => window.removeEventListener('apartment-payment-recorded', handler);
   }, [loadArrears]);
+
+  useRealtimeRefresh({
+    enabled: Boolean(user?.id),
+    channelName: `arrears:${user?.id ?? 'guest'}`,
+    tables: [
+      {
+        table: 'tenants',
+        filter: user?.id ? `creator_id=eq.${user.id}` : undefined
+      },
+      {
+        table: 'apartment_tenants',
+        filter: user?.id ? `user_id=eq.${user.id}` : undefined
+      },
+      {
+        table: 'payments',
+        filter: user?.id ? `creator_id=eq.${user.id}` : undefined
+      },
+      {
+        table: 'apartment_payments',
+        filter: user?.id ? `creator_id=eq.${user.id}` : undefined
+      },
+      {
+        table: 'units',
+        filter: user?.id ? `creator_id=eq.${user.id}` : undefined
+      },
+      { table: 'houses' }
+    ],
+    onChange: loadArrears
+  });
 
   const totalDue = arrears.reduce((sum, entry) => sum + entry.amountDue, 0);
   const totalExpectedRent = tenantBalances.reduce(

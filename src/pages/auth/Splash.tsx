@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { clientStorage } from '../../lib/clientStorage';
 
 type SplashProps = {
   onFinish: () => void;
@@ -17,7 +18,7 @@ const Splash = ({ onFinish }: SplashProps) => {
     if (index < images.length - 1) {
       setIndex((prev) => prev + 1);
     } else {
-      localStorage.setItem('hasSeenSplash', 'true');
+      void clientStorage.setBoolean('hasSeenSplash', true);
       onFinish();
     }
   };

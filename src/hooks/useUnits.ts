@@ -1,30 +1,52 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Unit } from '../types/unit';
-import { fetchUnits } from '../services/unitService';
+import { fetchUnits, getCachedUnits } from '../services/unitService';
+import { loadReadThrough } from '../lib/readThrough';
+import { useRealtimeRefresh } from './useRealtimeRefresh';
 
 const useUnits = (status: Unit['status'] | 'all' = 'vacant', ownerId?: string) => {
   const [units, setUnits] = useState<Unit[]>([]);
+  const isMounted = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadUnits = async () => {
-      try {
-        const data = await fetchUnits(undefined, status, ownerId);
-        if (mounted) {
-          setUnits(data);
-        }
-      } catch (error) {
-        console.error('useUnits error', error);
-      }
-    };
-
-    loadUnits();
-
+    isMounted.current = true;
     return () => {
-      mounted = false;
+      isMounted.current = false;
     };
-  }, [status, ownerId]);
+  }, []);
+
+  const loadUnits = useCallback(() => {
+    return loadReadThrough<Unit[]>({
+      loadCached: () => getCachedUnits(undefined, status, ownerId),
+      loadFresh: () => fetchUnits(undefined, status, ownerId),
+      onCached: setUnits,
+      onFresh: setUnits,
+      onError: (error) => {
+        console.error('useUnits error', error);
+      },
+      isActive: () => isMounted.current
+    });
+  }, [ownerId, status]);
+
+  useEffect(() => {
+    void loadUnits();
+  }, [loadUnits]);
+
+  useRealtimeRefresh({
+    enabled: Boolean(ownerId),
+    channelName: `units:${ownerId ?? 'guest'}:${status}`,
+    tables: [
+      {
+        table: 'units',
+        filter: ownerId ? `creator_id=eq.${ownerId}` : undefined
+      },
+      {
+        table: 'houses',
+        filter: ownerId ? `creator_id=eq.${ownerId}` : undefined
+      }
+    ],
+    onChange: loadUnits
+  });
 
   const refresh = async (overrideStatus?: Unit['status'] | 'all') => {
     try {

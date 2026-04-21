@@ -96,14 +96,6 @@ const Properties = () => {
     };
   }, []);
 
-  useEffect(() => {
-    console.log('🔍 OCCUPANCY DEBUG - Initial Load:', {
-      units: displayedUnits.map(u => ({ id: u.id, unitNumber: u.unitNumber, numberOfHouses: u.numberOfHouses })),
-      tenantsCount: tenants.length,
-      userId: user?.id
-    });
-  }, [displayedUnits, tenants, user?.id]);
-
   const occupantsByUnit = useMemo(() => {
     const map = new Map<string, number>();
     tenants.forEach((tenant) => {
@@ -134,25 +126,13 @@ const Properties = () => {
 
   useEffect(() => {
     if (!selectedUnit) {
-      console.log('❌ No unit selected');
       return;
     }
     const tenantCount = occupantsByUnit.get(selectedUnit.id) ?? 0;
     const capacity = selectedUnit.numberOfHouses ?? 1;
-    console.log('🏘️ Selected unit details:', {
-      unitNumber: selectedUnit.unitNumber,
-      unitId: selectedUnit.id,
-      tenantCount,
-      capacity,
-      occupancyPercentage: Math.round((tenantCount / capacity) * 100) + '%'
-    });
     if (tenantCount > capacity) {
       console.error(
         `❌ Occupancy mismatch for unit ${selectedUnit.unitNumber || selectedUnit.id}: ${tenantCount} tenants for ${capacity} houses`
-      );
-    } else {
-      console.log(
-        `✅ Occupancy OK for unit ${selectedUnit.unitNumber || selectedUnit.id}: ${tenantCount}/${capacity} occupied`
       );
     }
   }, [selectedUnit, occupantsByUnit]);
@@ -533,7 +513,6 @@ const Properties = () => {
 
   useEffect(() => {
     if (!selectedUnitId && displayedUnits.length > 0) {
-      console.log('🎯 Auto-selecting first unit:', displayedUnits[0]);
       setSelectedUnitId(displayedUnits[0].id);
     }
   }, [displayedUnits, selectedUnitId]);

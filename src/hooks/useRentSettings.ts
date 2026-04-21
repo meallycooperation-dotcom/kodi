@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { RentSettingInput } from '../services/tenantService';
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
+import { useRealtimeRefresh } from './useRealtimeRefresh';
 
 type RentSettingRow = {
   id: string;
@@ -12,32 +14,48 @@ type RentSettingRow = {
 
 const useRentSettings = (userId?: string) => {
   const [settings, setSettings] = useState<RentSettingRow[]>([]);
+  const cacheKey = buildCacheKey('rent-settings', userId ?? 'all');
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!userId) return;
 
-    let mounted = true;
-    const load = async () => {
-      const { data, error } = await supabase
-        .from('rent_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (error) {
-        console.error('useRentSettings error', error);
-        return;
-      }
-      if (mounted && data) {
-        setSettings(data);
-      }
-    };
+    try {
+      const cached = await readCache<RentSettingRow[]>(cacheKey, []);
+      setSettings(cached);
+    } catch (error) {
+      console.error('useRentSettings cache error', error);
+    }
 
-    load();
+    const { data, error } = await supabase
+      .from('rent_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('useRentSettings error', error);
+      return;
+    }
+    if (data) {
+      setSettings(data);
+      await writeCache(cacheKey, data);
+    }
+  }, [cacheKey, userId]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [userId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useRealtimeRefresh({
+    enabled: Boolean(userId),
+    channelName: `rent-settings:${userId ?? 'guest'}`,
+    tables: [
+      {
+        table: 'rent_settings',
+        filter: userId ? `user_id=eq.${userId}` : undefined
+      }
+    ],
+    onChange: load
+  });
 
   return { settings };
 };

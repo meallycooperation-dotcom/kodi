@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { Unit } from '../types/unit';
 
 type UnitRow = {
@@ -22,6 +23,21 @@ const mapUnitRow = (row: UnitRow): Unit => ({
   userId: row.creator_id ?? undefined,
   createdAt: row.created_at
 });
+
+const unitsCacheKey = (ownerId: string, propertyId: string | undefined, status: Unit['status'] | 'all') =>
+  buildCacheKey('units', ownerId, propertyId ?? 'all', status);
+
+export const getCachedUnits = async (
+  propertyId: string | undefined,
+  status: Unit['status'] | 'all' = 'vacant',
+  ownerId?: string
+) => {
+  if (!ownerId) {
+    return [];
+  }
+
+  return readCache<Unit[]>(unitsCacheKey(ownerId, propertyId, status), []);
+};
 
 export const insertUnit = async (payload: {
   propertyId?: string;
@@ -81,7 +97,9 @@ export const fetchUnits = async (
     throw error;
   }
 
-  return (data ?? []).map((row) => mapUnitRow(row as UnitRow));
+  const units = (data ?? []).map((row) => mapUnitRow(row as UnitRow));
+  await writeCache(unitsCacheKey(ownerId, propertyId, status), units);
+  return units;
 };
 
 export const deleteUnit = async (id: string) => {

@@ -6,10 +6,6 @@ export default function PaymentCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const url = new URL(window.location.href)
-    const trxref = url.searchParams.get('trxref')
-    const reference = url.searchParams.get('reference')
-    console.log('PaymentCallback', { trxref, reference })
     // You could verify the transaction with your backend here
     // Then navigate the user back to the dashboard
     const t = setTimeout(() => navigate('/dashboard', { replace: true }), 1000)

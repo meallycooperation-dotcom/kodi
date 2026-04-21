@@ -4,6 +4,7 @@ import routes from './routes';
 import { AppProviders } from './providers';
 import { MonthlyRentResetProvider } from './MonthlyRentResetProvider';
 import LandingPage from '../pages/landing/LandingPage';
+import { clientStorage } from '../lib/clientStorage';
 
 const App = () => {
   const [showLanding, setShowLanding] = useState(false);
@@ -11,9 +12,24 @@ const App = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hasSeenLanding = localStorage.getItem('hasSeenLanding') === 'true';
-    setShowLanding(!hasSeenLanding);
-    setReady(true);
+    let active = true;
+
+    const loadLandingState = async () => {
+      const hasSeenLanding = await clientStorage.getBoolean('hasSeenLanding', false);
+
+      if (!active) {
+        return;
+      }
+
+      setShowLanding(!hasSeenLanding);
+      setReady(true);
+    };
+
+    void loadLandingState();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -28,8 +44,8 @@ const App = () => {
     return (
       <LandingPage
         onSeen={() => {
-          localStorage.setItem('hasSeenLanding', 'true');
           setShowLanding(false);
+          void clientStorage.setBoolean('hasSeenLanding', true);
         }}
       />
     );

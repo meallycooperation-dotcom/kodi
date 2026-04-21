@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { Tenant } from '../types/tenant';
 
 export type NewTenantInput = Omit<Tenant, 'id' | 'createdAt'>;
@@ -70,6 +71,14 @@ const mapApartmentTenantRow = (row: ApartmentTenantRow): Tenant => ({
   createdAt: row.created_at
 });
 
+const tenantCacheKey = (userId?: string) => buildCacheKey('tenants', userId ?? 'all');
+const apartmentTenantCacheKey = (userId?: string) => buildCacheKey('apartment-tenants', userId ?? 'all');
+
+export const getCachedTenants = async (userId?: string) => readCache<Tenant[]>(tenantCacheKey(userId), []);
+
+export const getCachedApartmentTenants = async (userId?: string) =>
+  readCache<Tenant[]>(apartmentTenantCacheKey(userId), []);
+
 export const fetchTenants = async (userId?: string) => {
   let query = supabase.from('tenants').select('*').eq('status', 'active');
   if (userId) {
@@ -77,7 +86,9 @@ export const fetchTenants = async (userId?: string) => {
   }
   const { data, error } = await query;
   handleError(error);
-  return (data ?? []).map(mapTenantRow);
+  const tenants = (data ?? []).map(mapTenantRow);
+  await writeCache(tenantCacheKey(userId), tenants);
+  return tenants;
 };
 
 export const fetchApartmentTenants = async (userId?: string) => {
@@ -92,7 +103,9 @@ export const fetchApartmentTenants = async (userId?: string) => {
     .eq('user_id', userId);
 
   handleError(error);
-  return (data ?? []).map(mapApartmentTenantRow);
+  const tenants = (data ?? []).map(mapApartmentTenantRow);
+  await writeCache(apartmentTenantCacheKey(userId), tenants);
+  return tenants;
 };
 
 export const insertTenant = async (payload: NewTenantInput) => {

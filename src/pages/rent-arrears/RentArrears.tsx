@@ -8,7 +8,11 @@ import useAuth from '../../hooks/useAuth';
 import { useCurrency } from '../../context/currency';
 import PageLoader from '../../components/ui/PageLoader';
 import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
-import { fetchApartmentArrearsView, type ApartmentArrearsViewRecord } from '../../services/paymentService';
+import {
+  fetchApartmentArrearsView,
+  getCachedApartmentArrearsView,
+  type ApartmentArrearsViewRecord
+} from '../../services/paymentService';
 import { isUuid } from '../../utils/uuid';
 
 const RentArrears = () => {
@@ -54,6 +58,14 @@ const RentArrears = () => {
         return;
       }
       setLoadingApartmentArrears(true);
+      try {
+        const cached = await getCachedApartmentArrearsView(apartmentTenantIds);
+        if (mounted) {
+          setApartmentArrearsRecords(cached.filter((record) => record.userId === user?.id));
+        }
+      } catch (error) {
+        console.error('loadApartmentArrearsRecords cache error', error);
+      }
       try {
         const records = await fetchApartmentArrearsView(apartmentTenantIds);
         if (!mounted) return;

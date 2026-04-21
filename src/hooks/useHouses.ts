@@ -1,35 +1,53 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { House } from '../types/house';
-import { fetchHouses } from '../services/houseService';
+import { fetchHouses, getCachedHouses } from '../services/houseService';
+import { loadReadThrough } from '../lib/readThrough';
+import { useRealtimeRefresh } from './useRealtimeRefresh';
 
 const useHouses = (unitId?: string) => {
   const [houses, setHouses] = useState<House[]>([]);
+  const isMounted = useRef(false);
 
   useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  const loadHouses = useCallback(() => {
     if (!unitId) {
       setHouses([]);
-      return;
+      return Promise.resolve();
     }
 
-    let mounted = true;
-    const loadHouses = async () => {
-      try {
-        const fetched = await fetchHouses(unitId);
-        if (mounted) {
-          setHouses(fetched);
-        }
-      } catch (error) {
+    return loadReadThrough<House[]>({
+      loadCached: () => getCachedHouses(unitId),
+      loadFresh: () => fetchHouses(unitId),
+      onCached: setHouses,
+      onFresh: setHouses,
+      onError: (error) => {
         console.error('useHouses error', error);
-        if (mounted) setHouses([]);
-      }
-    };
-
-    loadHouses();
-
-    return () => {
-      mounted = false;
-    };
+      },
+      isActive: () => isMounted.current
+    });
   }, [unitId]);
+
+  useEffect(() => {
+    void loadHouses();
+  }, [loadHouses]);
+
+  useRealtimeRefresh({
+    enabled: Boolean(unitId),
+    channelName: `houses:${unitId ?? 'guest'}`,
+    tables: [
+      {
+        table: 'houses',
+        filter: unitId ? `unit_id=eq.${unitId}` : undefined
+      }
+    ],
+    onChange: loadHouses
+  });
 
   const refresh = async () => {
     if (!unitId) {

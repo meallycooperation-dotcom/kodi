@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { clientStorage } from '../lib/clientStorage';
 
 type Theme = 'light' | 'dark';
 
@@ -16,10 +17,6 @@ const getPreferredTheme = (): Theme => {
   if (typeof window === 'undefined') {
     return 'light';
   }
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === 'dark' || stored === 'light') {
-    return stored;
-  }
   if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     return 'dark';
   }
@@ -28,6 +25,7 @@ const getPreferredTheme = (): Theme => {
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
+  const [hydrated, setHydrated] = useState(false);
   const handleSetTheme = useCallback((value: Theme) => {
     setTheme(value);
   }, []);
@@ -47,11 +45,36 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   }, [theme]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    let active = true;
+
+    const loadTheme = async () => {
+      const stored = await clientStorage.getString(STORAGE_KEY);
+
+      if (!active) {
+        return;
+      }
+
+      if (stored === 'dark' || stored === 'light') {
+        setTheme(stored);
+      }
+
+      setHydrated(true);
+    };
+
+    void loadTheme();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) {
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme]);
+
+    void clientStorage.setString(STORAGE_KEY, theme);
+  }, [theme, hydrated]);
 
   const value = useMemo(
     () => ({

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { House } from '../types/house';
 
 type HouseRow = {
@@ -17,6 +18,21 @@ const mapHouseRow = (row: HouseRow): House => ({
   createdAt: row.created_at
 });
 
+const housesCacheKey = (scope: 'unit' | 'all', id: string) => buildCacheKey('houses', scope, id);
+const blockHousesCacheKey = (blockId: string) => buildCacheKey('houses', 'block', blockId);
+
+export const getCachedHouses = async (unitId: string): Promise<House[]> => {
+  return readCache<House[]>(housesCacheKey('unit', unitId), []);
+};
+
+export const getCachedAllHouses = async (userId: string): Promise<House[]> => {
+  return readCache<House[]>(housesCacheKey('all', userId), []);
+};
+
+export const getCachedBlockHouses = async (blockId: string): Promise<House[]> => {
+  return readCache<House[]>(blockHousesCacheKey(blockId), []);
+};
+
 export const fetchHouses = async (unitId: string): Promise<House[]> => {
   const { data, error } = await supabase
     .from('houses')
@@ -27,7 +43,9 @@ export const fetchHouses = async (unitId: string): Promise<House[]> => {
     throw error;
   }
 
-  return (data ?? []).map((row) => mapHouseRow(row as HouseRow));
+  const houses = (data ?? []).map((row) => mapHouseRow(row as HouseRow));
+  await writeCache(housesCacheKey('unit', unitId), houses);
+  return houses;
 };
 
 export const fetchAllHouses = async (userId: string): Promise<House[]> => {
@@ -56,7 +74,24 @@ export const fetchAllHouses = async (userId: string): Promise<House[]> => {
     throw error;
   }
 
-  return (data ?? []).map((row) => mapHouseRow(row as HouseRow));
+  const houses = (data ?? []).map((row) => mapHouseRow(row as HouseRow));
+  await writeCache(housesCacheKey('all', userId), houses);
+  return houses;
+};
+
+export const fetchBlockHouses = async (blockId: string): Promise<House[]> => {
+  const { data, error } = await supabase
+    .from('houses')
+    .select('*')
+    .eq('block_id', blockId);
+  if (error) {
+    console.error('fetchBlockHouses', error);
+    throw error;
+  }
+
+  const houses = (data ?? []).map((row) => mapHouseRow(row as HouseRow));
+  await writeCache(blockHousesCacheKey(blockId), houses);
+  return houses;
 };
 
 export const insertHouse = async (payload: {

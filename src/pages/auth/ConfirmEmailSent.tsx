@@ -1,5 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { clientStorage } from '../../lib/clientStorage';
 
 const knownEmailClients: Record<string, string> = {
   'gmail.com': 'https://mail.google.com/mail/u/0/#inbox',
@@ -46,22 +48,41 @@ const ConfirmEmailSent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const locationEmail = (location.state as { email?: string } | null)?.email || '';
+  const [storedEmail, setStoredEmail] = useState('');
 
   const resolvedEmail = useMemo(() => {
-    if (locationEmail) {
-      return locationEmail;
-    }
+    return locationEmail || storedEmail;
+  }, [locationEmail, storedEmail]);
 
-    if (typeof window === 'undefined') {
-      return '';
-    }
+  useEffect(() => {
+    let active = true;
 
-    return localStorage.getItem('pendingVerificationEmail') || '';
+    const loadPendingEmail = async () => {
+      if (locationEmail) {
+        if (active) {
+          setStoredEmail(locationEmail);
+        }
+        return;
+      }
+
+      const email = await clientStorage.getString('pendingVerificationEmail', '');
+      if (!active) {
+        return;
+      }
+
+      setStoredEmail(email);
+    };
+
+    void loadPendingEmail();
+
+    return () => {
+      active = false;
+    };
   }, [locationEmail]);
 
   useEffect(() => {
     if (resolvedEmail) {
-      localStorage.setItem('pendingVerificationEmail', resolvedEmail);
+      void clientStorage.setString('pendingVerificationEmail', resolvedEmail);
     }
   }, [resolvedEmail]);
 

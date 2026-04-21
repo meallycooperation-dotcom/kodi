@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { buildCacheKey, readCache, writeCache } from '../lib/appCache';
 import type { Notification } from '../types/notification';
 
 type NotificationRow = {
@@ -23,6 +24,11 @@ const mapNotificationRow = (row: NotificationRow): Notification => ({
   createdAt: row.created_at
 });
 
+const notificationCacheKey = (userId: string) => buildCacheKey('notifications', userId);
+
+export const getCachedNotifications = async (userId: string): Promise<Notification[]> =>
+  readCache<Notification[]>(notificationCacheKey(userId), []);
+
 export const fetchNotifications = async (userId: string): Promise<Notification[]> => {
   const { data, error } = await supabase
     .from('notifications')
@@ -35,7 +41,9 @@ export const fetchNotifications = async (userId: string): Promise<Notification[]
     return [];
   }
 
-  return (data as NotificationRow[]).map(mapNotificationRow);
+  const notifications = (data as NotificationRow[]).map(mapNotificationRow);
+  await writeCache(notificationCacheKey(userId), notifications);
+  return notifications;
 };
 
 export const markAsRead = async (notificationId: string): Promise<void> => {

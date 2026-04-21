@@ -1,4 +1,4 @@
-﻿import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -18,6 +18,8 @@ import { fetchSubscriptionForUser, type SubscriptionRow } from '../../services/s
 import useApartmentTenantTracker from '../../hooks/useApartmentTenantTracker';
 import { isUuid } from '../../utils/uuid';
 import { deactivateApartmentTenant } from '../../services/tenantService';
+import type { Tenant } from '../../types/tenant';
+import type { Unit } from '../../types/unit';
 // Removed duplicateTenant/Unit type imports to fix redeclaration
 // Plan title mapping for apartments (shared naming with other pages)
 const planTitleMapApartments: Record<'basic' | 'standard' | 'premium', string> = {
@@ -25,8 +27,6 @@ const planTitleMapApartments: Record<'basic' | 'standard' | 'premium', string> =
   standard: 'Standard Plan',
   premium: 'Premium Plan'
 };
-import type { Tenant } from '../../types/tenant';
-import type { Unit } from '../../types/unit';
 
 export default function ApartmentManager() {
   const { user } = useAuth();

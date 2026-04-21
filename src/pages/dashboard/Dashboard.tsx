@@ -22,6 +22,7 @@ import Button from '../../components/ui/Button';
 import { fetchAirbnbTenantsByListingIds } from '../../services/airbnbTenantService';
 import {
   fetchApartmentPaidView,
+  getCachedApartmentPaidView,
   type ApartmentPaidViewRecord
 } from '../../services/paymentService';
 import type { AirbnbTenant } from '../../types/airbnbTenant';
@@ -81,12 +82,10 @@ const Dashboard = () => {
   };
 
   // Base URL for API requests (production should set VITE_API_BASE_URL)
-  const API_BASE =
-    (import.meta as any).env?.VITE_API_BASE_URL ?? 'https://kodiserver-production.up.railway.app';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://kodiserver-production.up.railway.app';
 
   const handleInitializePayment = async (plan: 'basic'|'standard'|'premium') => {
     const amount = amountMap[plan];
-    console.log({ email: user?.email, amount, user_id: user?.id, plan });
     try {
       const res = await fetch(`${API_BASE}/api/payments/initialize`, {
         method: 'POST',
@@ -96,7 +95,6 @@ const Dashboard = () => {
         body: JSON.stringify({ email: user?.email, amount, user_id: user?.id, plan })
       });
       const data = await res.json();
-      console.log(data);
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
       }
@@ -200,6 +198,15 @@ const Dashboard = () => {
       }
 
       setApartmentPaidLoading(true);
+      try {
+        const cached = await getCachedApartmentPaidView(user.id);
+        if (mounted) {
+          setApartmentPaidRecords(cached);
+        }
+      } catch (error) {
+        console.error('loadApartmentPaidView cache error', error);
+      }
+
       try {
         const records = await fetchApartmentPaidView(user.id);
         if (mounted) {
