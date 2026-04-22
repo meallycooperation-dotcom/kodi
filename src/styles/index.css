@@ -204,8 +204,9 @@ main {
   background: var(--card-bg);
   border-radius: 0.85rem;
   padding: 1.5rem;
-  width: min(92vw, 520px);
-  max-height: 90vh;
+  width: min(96vw, 1120px);
+  min-height: min(86vh, 900px);
+  max-height: 94vh;
   overflow: hidden;
   box-shadow: var(--modal-shadow);
 }
@@ -218,7 +219,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  max-height: calc(90vh - 80px);
+  max-height: calc(94vh - 80px);
   overflow-y: auto;
   padding-right: 0.25rem;
 }

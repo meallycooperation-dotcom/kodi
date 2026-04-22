@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import * as XLSX from 'xlsx';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import PaymentForm from '../../components/rent/PaymentForm';
@@ -36,6 +37,20 @@ const tenantFormInitial = {
   previousArrears: ''
 };
 
+type UnitImportFeedback = {
+  kind: 'success' | 'error';
+  message: string;
+};
+
+type UnitImportRow = {
+  fullName: string;
+  phone?: string;
+  email?: string;
+  houseNumber?: string;
+  moveInDate?: string;
+  previousArrears?: number;
+};
+
 const planTitleMap: Record<'basic' | 'standard' | 'premium', string> = {
   basic: 'Basic Plan',
   standard: 'Standard Plan',
@@ -66,6 +81,11 @@ const Properties = () => {
   const [tenantModalRemoving, setTenantModalRemoving] = useState(false);
   const [tenantModalStatus, setTenantModalStatus] = useState<string | null>(null);
   const [confirmRemovalOpen, setConfirmRemovalOpen] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importFeedback, setImportFeedback] = useState<UnitImportFeedback | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
@@ -321,6 +341,216 @@ const Properties = () => {
   const closeTenantForm = () => {
     setTenantFormOpen(false);
     setTenantFormStatus(null);
+  };
+
+  const normalizeText = (value: unknown) =>
+    String(value ?? '')
+      .trim()
+      .toLowerCase();
+
+  const normalizeHouseNumber = (value: unknown) => {
+    const text = String(value ?? '').trim();
+    const digits = text.match(/\d+/g)?.join('');
+    return digits ? Number(digits) : Number.NaN;
+  };
+
+  const pickRowValue = (row: Record<string, unknown>, keys: string[]) => {
+    const normalizedEntries = Object.entries(row).map(([key, value]) => [normalizeText(key), value] as const);
+    for (const key of keys) {
+      const match = normalizedEntries.find(([entryKey]) => entryKey === normalizeText(key));
+      if (match && match[1] !== undefined && match[1] !== null && String(match[1]).trim() !== '') {
+        return String(match[1]).trim();
+      }
+    }
+    return '';
+  };
+
+  const parseImportFile = async (file: File): Promise<UnitImportRow[]> => {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      throw new Error('The Excel file does not contain any sheets.');
+    }
+
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+
+    return rows
+      .map((row): UnitImportRow | null => {
+        const fullName = pickRowValue(row, ['full_name', 'full name', 'name']);
+        if (!fullName) {
+          return null;
+        }
+
+        const arrearsValue = pickRowValue(row, ['previous_arrears', 'previous arrears', 'arrears']);
+        const parsedArrears = arrearsValue ? Number(arrearsValue) : 0;
+
+        return {
+          fullName,
+          phone: pickRowValue(row, ['phone', 'phone_number', 'phone number']),
+          email: pickRowValue(row, ['email']),
+          houseNumber: pickRowValue(row, ['house_number', 'house number', 'house']),
+          moveInDate: pickRowValue(row, ['move_in_date', 'move in date', 'move-in-date']),
+          previousArrears: Number.isFinite(parsedArrears) ? parsedArrears : 0
+        };
+      })
+      .filter((row): row is UnitImportRow => row !== null);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportLoading(false);
+    setImportProgress(0);
+    setImportFeedback(null);
+  };
+
+  const handleImportFileDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setImportFile(event.dataTransfer.files?.[0] ?? null);
+  };
+
+  const handleImportTenants = async () => {
+    if (!user) {
+      setImportFeedback({ kind: 'error', message: 'Sign in first to import tenants.' });
+      return;
+    }
+
+    if (!selectedUnit) {
+      setImportFeedback({ kind: 'error', message: 'Select a unit before importing.' });
+      return;
+    }
+
+    if (!importFile) {
+      setImportFeedback({ kind: 'error', message: 'Choose an Excel file first.' });
+      return;
+    }
+
+    setImportLoading(true);
+    setImportProgress(0);
+    setImportFeedback(null);
+
+    try {
+      const parsedRows = await parseImportFile(importFile);
+      if (parsedRows.length === 0) {
+        throw new Error('No tenant rows were found in the first sheet.');
+      }
+
+      setImportProgress(10);
+
+      const totalHouses = selectedUnit.numberOfHouses ?? 1;
+      const occupiedSet = occupiedHouseNumbersByUnit.get(selectedUnit.id) ?? new Set<number>();
+      const availableHouses = Array.from({ length: totalHouses }, (_, index) => index + 1).filter(
+        (houseNumber) => !occupiedSet.has(houseNumber)
+      );
+
+      if (availableHouses.length === 0) {
+        throw new Error('No vacant houses are available in this unit.');
+      }
+
+      const assignedHouseNumbers = new Set<number>();
+      const tenantsToInsert: Array<{
+        userId: string;
+        unitId: string;
+        houseNumber: string;
+        fullName: string;
+        phone?: string;
+        email?: string;
+        moveInDate?: string;
+        arrears?: number;
+        status: 'active';
+      }> = [];
+      const skippedRows: string[] = [];
+      let nextAvailableIndex = 0;
+
+      const takeNextAvailableHouse = () => {
+        while (
+          nextAvailableIndex < availableHouses.length &&
+          assignedHouseNumbers.has(availableHouses[nextAvailableIndex])
+        ) {
+          nextAvailableIndex += 1;
+        }
+
+        const houseNumber = availableHouses[nextAvailableIndex];
+        if (!houseNumber) {
+          return null;
+        }
+
+        assignedHouseNumbers.add(houseNumber);
+        nextAvailableIndex += 1;
+        return houseNumber;
+      };
+
+      const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      for (let index = 0; index < parsedRows.length; index += 1) {
+        const row = parsedRows[index];
+        const requestedHouseNumber = row.houseNumber ? normalizeHouseNumber(row.houseNumber) : Number.NaN;
+        const targetHouseNumber = Number.isNaN(requestedHouseNumber)
+          ? takeNextAvailableHouse()
+          : availableHouses.includes(requestedHouseNumber) && !assignedHouseNumbers.has(requestedHouseNumber)
+            ? requestedHouseNumber
+            : null;
+
+        if (!targetHouseNumber) {
+          skippedRows.push(`Row ${index + 2}: no matching vacant house was found.`);
+        } else {
+          assignedHouseNumbers.add(targetHouseNumber);
+          tenantsToInsert.push({
+            userId: user.id,
+            unitId: selectedUnit.id,
+            houseNumber: String(targetHouseNumber),
+            fullName: row.fullName,
+            phone: row.phone || undefined,
+            email: row.email || undefined,
+            moveInDate: row.moveInDate || undefined,
+            arrears: row.previousArrears ?? 0,
+            status: 'active'
+          });
+        }
+
+        const progressBase = 10;
+        const progressSpan = 70;
+        const rowProgress = progressBase + Math.round(((index + 1) / parsedRows.length) * progressSpan);
+        setImportProgress(Math.min(80, rowProgress));
+
+        if ((index + 1) % 5 === 0) {
+          await pause();
+        }
+      }
+
+      if (tenantsToInsert.length === 0) {
+        throw new Error('No valid tenants were found to import.');
+      }
+
+      setImportProgress(85);
+
+      for (let index = 0; index < tenantsToInsert.length; index += 1) {
+        const tenant = tenantsToInsert[index];
+        await insertTenant(tenant);
+        const progress = 85 + Math.round(((index + 1) / tenantsToInsert.length) * 10);
+        setImportProgress(Math.min(95, progress));
+      }
+
+      await Promise.all([refreshTenants(), refresh('all')]);
+      setImportProgress(100);
+      setImportFile(null);
+      setImportFeedback({
+        kind: 'success',
+        message:
+          skippedRows.length > 0
+            ? `Imported ${tenantsToInsert.length} tenant(s). ${skippedRows.length} row(s) were skipped.`
+            : `Imported ${tenantsToInsert.length} tenant(s) successfully.`
+      });
+    } catch (error) {
+      setImportProgress(0);
+      setImportFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Import failed.'
+      });
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const handleTenantFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -660,11 +890,24 @@ const Properties = () => {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-semibold text-lg">Occupancy grid</h2>
-        <p className="text-sm text-gray-500">
-          Click any unit above to release the occupancy grid: green means houses occupied, red means houses still
-          available.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-lg">Occupancy grid</h2>
+            <p className="text-sm text-gray-500">
+              Click any unit above to release the occupancy grid: green means houses occupied, red means houses still
+              available.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => setShowImportModal(true)}
+            disabled={!selectedUnit}
+            className="px-4 py-2 text-sm shadow-md"
+          >
+            Import tenants
+          </Button>
+        </div>
         {selectedUnit ? (
           <>
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -705,6 +948,66 @@ const Properties = () => {
                 <p className="status-card__meta">Needs tenants or in maintenance</p>
               </article>
             </div>
+            {showImportModal && (
+              <Modal title={`Import tenants to ${selectedUnit.unitNumber || 'unit'}`}>
+                <div className="space-y-4">
+                  <div className="grid gap-3">
+                    <label
+                      htmlFor="unit-import-input"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={handleImportFileDrop}
+                      className="grid min-h-[420px] cursor-pointer place-items-center rounded-xl border border-dashed border-gray-200 bg-gray-50/70 p-4 text-center transition hover:border-blue-400 hover:bg-blue-50/60"
+                    >
+                      <div className="grid gap-4 place-items-center">
+                        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-gray-500">
+                          Tap/drag to add file
+                        </p>
+                        <img
+                          src="/images/excel%20properties%20excel%20type.jpg"
+                          alt="Excel properties file type example"
+                          className="max-h-[340px] w-full max-w-[980px] object-contain"
+                        />
+                      </div>
+                    </label>
+                    <input
+                      id="unit-import-input"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+                    />
+                    <p className="text-xs text-gray-500">
+                      {importFile ? `Selected: ${importFile.name}` : 'No file selected yet.'}
+                    </p>
+                  </div>
+                  {importFeedback && (
+                    <p className={`text-sm ${importFeedback.kind === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                      {importFeedback.message}
+                    </p>
+                  )}
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={closeImportModal} disabled={importLoading}>
+                      Close
+                    </Button>
+                    <Button type="button" onClick={handleImportTenants} disabled={importLoading}>
+                      {importLoading ? 'Importing...' : 'Import'}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Import progress</span>
+                      <span>{importProgress}%</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out"
+                        style={{ width: `${importProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </Modal>
+            )}
             {tenantModal && (
               <Modal title={`Tenant in house ${tenantModal.houseNumber ?? ''}`}>
                 <div className="space-y-4">

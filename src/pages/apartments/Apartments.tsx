@@ -1,4 +1,5 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState, type DragEvent } from 'react';
+import * as XLSX from 'xlsx';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
@@ -28,6 +29,20 @@ const planTitleMapApartments: Record<'basic' | 'standard' | 'premium', string> =
   premium: 'Premium Plan'
 };
 
+type ApartmentImportFeedback = {
+  kind: 'success' | 'error';
+  message: string;
+};
+
+type ApartmentImportRow = {
+  houseNumber?: string;
+  fullName: string;
+  phoneNumber?: string;
+  idNumber?: string;
+  moveInDate?: string;
+  arrears?: number;
+};
+
 export default function ApartmentManager() {
   const { user } = useAuth();
   const userId = user?.id;
@@ -44,6 +59,58 @@ export default function ApartmentManager() {
       return String(value);
     }
     return formatCurrency(amount);
+  };
+
+  const normalizeCell = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+  const normalizeHouseKey = (value: unknown) =>
+    String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+  const pickRowValue = (row: Record<string, unknown>, keys: string[]) => {
+    const normalizedEntries = Object.entries(row).map(([key, value]) => [normalizeCell(key), value] as const);
+    for (const key of keys) {
+      const normalizedKey = normalizeCell(key);
+      const match = normalizedEntries.find(([rowKey]) => rowKey === normalizedKey);
+      if (match && match[1] !== undefined && match[1] !== null && String(match[1]).trim() !== '') {
+        return String(match[1]).trim();
+      }
+    }
+    return '';
+  };
+
+  const parseImportFile = async (file: File): Promise<ApartmentImportRow[]> => {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      throw new Error('The Excel file does not contain any sheets.');
+    }
+
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+
+    return rows
+      .map((row): ApartmentImportRow | null => {
+        const fullName = pickRowValue(row, ['full_name', 'full name', 'name']);
+        if (!fullName) {
+          return null;
+        }
+
+        const arrearsValue = pickRowValue(row, ['arrears']);
+        const parsedArrears = arrearsValue ? Number(arrearsValue) : 0;
+
+        return {
+          houseNumber: pickRowValue(row, ['house_number', 'house number', 'house no', 'house']),
+          fullName,
+          phoneNumber: pickRowValue(row, ['phone_number', 'phone number', 'phone']),
+          idNumber: pickRowValue(row, ['id_number', 'id number', 'id']),
+          moveInDate: pickRowValue(row, ['move_in_date', 'move in date', 'move-in-date']),
+          arrears: Number.isFinite(parsedArrears) ? parsedArrears : 0
+        } as ApartmentImportRow;
+      })
+      .filter((row): row is ApartmentImportRow => row !== null);
   };
 
   const [apartments, setApartments] = useState<any[]>([]);
@@ -64,6 +131,11 @@ export default function ApartmentManager() {
   const [limitPopupOpen, setLimitPopupOpen] = useState(false);
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [showHouseForm, setShowHouseForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importFeedback, setImportFeedback] = useState<ApartmentImportFeedback | null>(null);
   const [houseModal, setHouseModal] = useState<{
     house: any;
     tenant: any | null;
@@ -138,9 +210,15 @@ export default function ApartmentManager() {
     );
     const sanitized = ordered.map((house) => ({
       ...house,
-      apartment_tenants: (house.apartment_tenants ?? []).filter(
-        (tenant: any) => tenant.status === 'active'
-      )
+      apartment_tenants: (() => {
+        const rawTenants = house.apartment_tenants;
+        const tenants = Array.isArray(rawTenants)
+          ? rawTenants
+          : rawTenants
+            ? [rawTenants]
+            : [];
+        return tenants.filter((tenant: any) => tenant.status === 'active');
+      })()
     }));
     setApartmentHouses(sanitized);
   };
@@ -319,6 +397,208 @@ export default function ApartmentManager() {
     await fetchHouses(selectedBlock.id);
     const blockIds = blocks.map((block) => block.id);
     await fetchApartmentHouses(blockIds);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportLoading(false);
+    setImportProgress(0);
+    setImportFeedback(null);
+  };
+
+  const handleImportFileDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    const droppedFile = event.dataTransfer.files?.[0] ?? null;
+    setImportFile(droppedFile);
+  };
+
+  const handleImportTenants = async () => {
+    if (!selectedBlock?.id) {
+      setImportFeedback({ kind: 'error', message: 'Pick a block before importing tenants.' });
+      return;
+    }
+
+    if (!importFile) {
+      setImportFeedback({ kind: 'error', message: 'Choose an Excel file first.' });
+      return;
+    }
+
+    setImportLoading(true);
+    setImportProgress(0);
+    setImportFeedback(null);
+
+    try {
+      const parsedRows = await parseImportFile(importFile);
+      if (parsedRows.length === 0) {
+        throw new Error('No tenant rows were found in the first sheet.');
+      }
+
+      setImportProgress(10);
+
+      const { data: houseRows, error: houseError } = await supabase
+        .from('houses')
+        .select('*')
+        .eq('block_id', selectedBlock.id);
+
+      if (houseError) {
+        throw houseError;
+      }
+
+      const availableHouses = (houseRows ?? [])
+        .slice()
+        .sort((a, b) => String(a.house_number).localeCompare(String(b.house_number)))
+        .filter((house) => (house.status ?? 'vacant') === 'vacant');
+
+      setImportProgress(20);
+
+      const houseLookup = new Map<string, any>();
+      availableHouses.forEach((house) => {
+        const normalizedHouseNumber = normalizeHouseKey(house.house_number);
+        if (normalizedHouseNumber) {
+          houseLookup.set(normalizedHouseNumber, house);
+        }
+      });
+
+      const resolveHouseNumber = (houseNumber: string) => {
+        const normalizedHouseNumber = normalizeHouseKey(houseNumber);
+        if (!normalizedHouseNumber) {
+          return null;
+        }
+
+        const exactMatch = houseLookup.get(normalizedHouseNumber);
+        if (exactMatch) {
+          return exactMatch;
+        }
+
+        const blockPrefix = normalizeHouseKey(selectedBlock.block_name);
+        if (blockPrefix) {
+          const prefixedMatch = houseLookup.get(`${blockPrefix}${normalizedHouseNumber}`);
+          if (prefixedMatch) {
+            return prefixedMatch;
+          }
+        }
+
+        const suffixMatch = availableHouses.find((house) => {
+          const normalizedCandidate = normalizeHouseKey(house.house_number);
+          return (
+            normalizedCandidate === normalizedHouseNumber ||
+            normalizedCandidate.endsWith(normalizedHouseNumber) ||
+            normalizedHouseNumber.endsWith(normalizedCandidate)
+          );
+        });
+
+        return suffixMatch ?? null;
+      };
+      const assignedHouseIds = new Set<string>();
+      const tenantsToInsert: Array<{
+        house_id: string;
+        full_name: string;
+        phone_number: string | null;
+        id_number: string | null;
+        move_in_date: string | null;
+        arrears: number;
+        user_id: string | null;
+      }> = [];
+      const skippedRows: string[] = [];
+
+      let nextAvailableIndex = 0;
+      const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+      const takeNextVacantHouse = () => {
+        while (
+          nextAvailableIndex < availableHouses.length &&
+          assignedHouseIds.has(availableHouses[nextAvailableIndex].id)
+        ) {
+          nextAvailableIndex += 1;
+        }
+
+        const house = availableHouses[nextAvailableIndex];
+        if (!house) {
+          return null;
+        }
+
+        assignedHouseIds.add(house.id);
+        nextAvailableIndex += 1;
+        return house;
+      };
+
+      for (let index = 0; index < parsedRows.length; index += 1) {
+        const row = parsedRows[index];
+        const targetHouse = row.houseNumber
+          ? resolveHouseNumber(row.houseNumber)
+          : takeNextVacantHouse();
+
+        if (!targetHouse) {
+          skippedRows.push(`Row ${index + 2}: no matching vacant house was found.`);
+        } else if ((targetHouse.status ?? 'vacant') !== 'vacant') {
+          skippedRows.push(`Row ${index + 2}: house ${targetHouse.house_number} is already occupied.`);
+        } else if (assignedHouseIds.has(targetHouse.id)) {
+          skippedRows.push(`Row ${index + 2}: house ${targetHouse.house_number} was already assigned in this import.`);
+        } else {
+          assignedHouseIds.add(targetHouse.id);
+          tenantsToInsert.push({
+            house_id: targetHouse.id,
+            full_name: row.fullName,
+            phone_number: row.phoneNumber || null,
+            id_number: row.idNumber || null,
+            move_in_date: row.moveInDate || null,
+            arrears: row.arrears ?? 0,
+            user_id: userId ?? null
+          });
+        }
+
+        const progressBase = 20;
+        const progressSpan = 60;
+        const rowProgress = progressBase + Math.round(((index + 1) / parsedRows.length) * progressSpan);
+        setImportProgress(Math.min(80, rowProgress));
+
+        if ((index + 1) % 5 === 0) {
+          await pause();
+        }
+      }
+
+      if (tenantsToInsert.length === 0) {
+        throw new Error('No valid tenants were found to import.');
+      }
+
+      setImportProgress(85);
+
+      const { error: insertError } = await supabase.from('apartment_tenants').insert(tenantsToInsert);
+      if (insertError) {
+        throw insertError;
+      }
+
+      setImportProgress(92);
+
+      await supabase
+        .from('houses')
+        .update({ status: 'occupied' })
+        .in(
+          'id',
+          tenantsToInsert.map((tenant) => tenant.house_id)
+        );
+
+      await fetchHouses(selectedBlock.id);
+      const blockIds = blocks.map((block) => block.id);
+      await fetchApartmentHouses(blockIds);
+      setImportProgress(100);
+      setImportFile(null);
+      setImportFeedback({
+        kind: 'success',
+        message:
+          skippedRows.length > 0
+            ? `Imported ${tenantsToInsert.length} tenant(s). ${skippedRows.length} row(s) were skipped.`
+            : `Imported ${tenantsToInsert.length} tenant(s) successfully.`
+      });
+    } catch (error) {
+      setImportProgress(0);
+      setImportFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Import failed.'
+      });
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const openHouseModal = async (house: any) => {
@@ -555,6 +835,7 @@ export default function ApartmentManager() {
       .map((record, index) => ({
         ...record,
         amountDue: Number(record.balance ?? 0),
+        currentRentDue: Math.max(0, Number(record.totalExpectedRent ?? 0) - Number(record.totalPaid ?? 0)),
         id: `${record.tenantId}-${index}`
       }));
   }, [arrearsViewRecords, houseModal?.tenant?.id]);
@@ -682,6 +963,68 @@ export default function ApartmentManager() {
         </Modal>
       )}
 
+      {showImportModal && (
+        <Modal title="Import tenants">
+          <div className="grid gap-4">
+            <div className="min-h-[420px] grid place-items-center text-center rounded-xl border border-dashed border-gray-200 bg-gray-50/70 p-4">
+              <img
+                src="/images/excel%20file%20type.jpg"
+                alt="Excel file type example"
+                className="max-h-[380px] w-full max-w-[980px] object-contain"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label
+                htmlFor="excel-import-input"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleImportFileDrop}
+                className="grid min-h-[160px] cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-gray-300 bg-white/80 px-6 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50/60"
+              >
+                <div className="space-y-2 text-gray-600">
+                  <p className="text-base font-semibold text-gray-800">Drop or tap to choose</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Excel file</p>
+                </div>
+              </label>
+              <input
+                id="excel-import-input"
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-gray-500">
+                {importFile ? `Selected: ${importFile.name}` : 'No file selected yet.'}
+              </p>
+            </div>
+            {importFeedback && (
+              <p className={`text-sm ${importFeedback.kind === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                {importFeedback.message}
+              </p>
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={closeImportModal} disabled={importLoading}>
+              Close
+            </Button>
+            <Button type="button" onClick={handleImportTenants} disabled={importLoading}>
+              {importLoading ? 'Importing...' : 'Import'}
+            </Button>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Import progress</span>
+              <span>{importProgress}%</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out"
+                style={{ width: `${importProgress}%` }}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         {apartments.map((apt) => (
           <Card
@@ -770,9 +1113,19 @@ export default function ApartmentManager() {
 
       {selectedBlock && (
         <Card>
-          <h2 className="text-lg font-bold mb-2">
-            Houses - Block {selectedBlock.block_name}
-          </h2>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-bold">
+              Houses - Block {selectedBlock.block_name}
+            </h2>
+          <Button
+            type="button"
+            variant="primary"
+            className="px-4 py-2 text-sm shadow-md"
+            onClick={() => setShowImportModal(true)}
+          >
+            Import
+          </Button>
+          </div>
 
           <div className="text-sm text-gray-600 mb-4 flex flex-wrap gap-4">
             {selectedBlock.bedrooms != null && (
@@ -865,7 +1218,7 @@ export default function ApartmentManager() {
               )}
                 <div className="rounded-lg border border-dashed border-gray-200 bg-white p-3 text-sm text-gray-700">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="font-semibold text-gray-900">Tenants arrears</p>
+                    <p className="font-semibold text-gray-900">Tenant balance</p>
                     <span className="text-sm text-gray-500">
                       {formatCurrency(modalTenantArrearsTotal)}
                     </span>
@@ -882,13 +1235,15 @@ export default function ApartmentManager() {
                               ? `${entry.monthsStayed} month${entry.monthsStayed === 1 ? '' : 's'} of tenancy`
                               : 'Lifetime summary'}
                           </p>
+                          <p>Current rent due: {formatCurrency(entry.currentRentDue)}</p>
+                          <p>Imported arrears: {formatCurrency(entry.previousArrears)}</p>
                           <p>
                             Total rent: {formatCurrency(entry.totalExpectedRent)} · Paid: {formatCurrency(entry.totalPaid)}
                           </p>
                           <p className="text-xs font-semibold text-gray-700">
                             {entry.status === 'paid'
                               ? 'Status: Paid'
-                              : `Status: Owes ${formatCurrency(entry.amountDue)}`}
+                              : `Status: Balance ${formatCurrency(entry.amountDue)}`}
                           </p>
                         </div>
                       ))}
